@@ -1,0 +1,55 @@
+From 8f8f24a19aa46b3453068f2fb6b6f6ff8635990e Mon Sep 17 00:00:00 2001
+From: "Claude (AI-assisted)" <noreply@anthropic.com>
+Date: Mon, 19 Oct 2026 06:09:41 +0000
+Subject: [PATCH 5/5] x86: wire up the net_quota system call
+
+Add sys_net_quota as syscall 472 on x86_64, declare it in syscalls.h and
+build kernel/net_quota.c. The syscall needs CONFIG_NET.
+---
+ arch/x86/entry/syscalls/syscall_64.tbl | 1 +
+ include/linux/syscalls.h               | 2 ++
+ kernel/Makefile                        | 3 ++-
+ 3 files changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/arch/x86/entry/syscalls/syscall_64.tbl b/arch/x86/entry/syscalls/syscall_64.tbl
+index 524155d..e56cd0c 100644
+--- a/arch/x86/entry/syscalls/syscall_64.tbl
++++ b/arch/x86/entry/syscalls/syscall_64.tbl
+@@ -396,6 +396,7 @@
+ 469	common	file_setattr		sys_file_setattr
+ 470	common	listns			sys_listns
+ 471	common	rseq_slice_yield	sys_rseq_slice_yield
++472	common	net_quota		sys_net_quota
+ 
+ #
+ # Due to a historical design error, certain syscalls are numbered differently
+diff --git a/include/linux/syscalls.h b/include/linux/syscalls.h
+index 874d906..8f6f5bc 100644
+--- a/include/linux/syscalls.h
++++ b/include/linux/syscalls.h
+@@ -966,6 +966,8 @@ asmlinkage long sys_statx(int dfd, const char __user *path, unsigned flags,
+ asmlinkage long sys_rseq(struct rseq __user *rseq, uint32_t rseq_len,
+ 			 int flags, uint32_t sig);
+ asmlinkage long sys_rseq_slice_yield(void);
++asmlinkage long sys_net_quota(pid_t pid, u64 data_size,
++			      unsigned int period_sec);
+ asmlinkage long sys_open_tree(int dfd, const char __user *path, unsigned flags);
+ asmlinkage long sys_open_tree_attr(int dfd, const char __user *path,
+ 				   unsigned flags,
+diff --git a/kernel/Makefile b/kernel/Makefile
+index 1e1a316..8a6dea6 100644
+--- a/kernel/Makefile
++++ b/kernel/Makefile
+@@ -10,7 +10,8 @@ obj-y     = fork.o exec_domain.o exec_state.o panic.o \
+ 	    extable.o params.o \
+ 	    kthread.o sys_ni.o nsproxy.o nstree.o nscommon.o \
+ 	    notifier.o ksysfs.o cred.o reboot.o \
+-	    async.o range.o smpboot.o ucount.o regset.o ksyms_common.o
++	    async.o range.o smpboot.o ucount.o regset.o ksyms_common.o \
++	    net_quota.o
+ 
+ obj-$(CONFIG_MULTIUSER) += groups.o
+ obj-$(CONFIG_VHOST_TASK) += vhost_task.o
+-- 
+2.43.0
+
