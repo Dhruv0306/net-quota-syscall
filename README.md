@@ -11,7 +11,7 @@ Target platform: Ubuntu 24.04 on x86_64, Linux kernel 7.2.10 (custom build).
 
 ```
 net-quota-syscall/
-├── kernel-code/     new files and patches for the kernel tree (see its README)
+├── kernel-code/     net_quota/ directory, headers and patches for the kernel tree
 └── user-code/       wrapper library, CLI, tests and design notes
 ```
 

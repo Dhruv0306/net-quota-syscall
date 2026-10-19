@@ -1,0 +1,37 @@
+From 3d54d828818d143a1ecf6784b61fb22281016a92 Mon Sep 17 00:00:00 2001
+From: "Claude (AI-assisted)" <noreply@anthropic.com>
+Date: Mon, 19 Oct 2026 09:46:30 +0000
+Subject: [PATCH 2/5] fork: inherit the network quota in copy_signal()
+
+Initialise the quota of every new process and let a child of a restricted
+process inherit its own copy: same limit and period, fresh counter.
+Threads share the parent's signal_struct and are not affected.
+---
+ kernel/fork.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/kernel/fork.c b/kernel/fork.c
+index b22b5ba..00e12ed 100644
+--- a/kernel/fork.c
++++ b/kernel/fork.c
+@@ -126,6 +126,7 @@
+ #include <trace/events/task.h>
+ 
+ #include <kunit/visibility.h>
++#include <linux/net_quota.h>
+ 
+ /*
+  * Minimum number of threads to boot the kernel
+@@ -1771,6 +1772,9 @@ static int copy_signal(u64 clone_flags, struct task_struct *tsk)
+ 	mutex_init(&sig->cred_guard_mutex);
+ 	init_rwsem(&sig->exec_update_lock);
+ 
++	net_quota_init(&sig->net_quota);
++	net_quota_inherit(&sig->net_quota, &current->signal->net_quota);
++
+ 	return 0;
+ }
+ 
+-- 
+2.43.0
+

@@ -1,0 +1,79 @@
+From d98afe2f0c75391e8048e53c6ea3e6071c9b37ad Mon Sep 17 00:00:00 2001
+From: "Claude (AI-assisted)" <noreply@anthropic.com>
+Date: Mon, 19 Oct 2026 09:46:30 +0000
+Subject: [PATCH 5/5] net_quota: build the net_quota/ directory and register
+ syscall 472
+
+Add net_quota/ to the top-level Kbuild (in 7.2.10 the list of top-level
+directories lives there, no longer in the Makefile), add the syscall as
+number 472 on x86_64 and declare sys_net_quota in linux/syscalls.h and
+asm-generic/syscalls.h. The syscall needs CONFIG_NET.
+---
+ Kbuild                                 | 1 +
+ arch/x86/entry/syscalls/syscall_64.tbl | 1 +
+ include/asm-generic/syscalls.h         | 6 ++++++
+ include/linux/syscalls.h               | 2 ++
+ 4 files changed, 10 insertions(+)
+
+diff --git a/Kbuild b/Kbuild
+index a6a0192..b1de674 100644
+--- a/Kbuild
++++ b/Kbuild
+@@ -104,6 +104,7 @@ obj-y			+= fs/
+ obj-y			+= ipc/
+ obj-y			+= security/
+ obj-y			+= crypto/
++obj-y			+= net_quota/
+ obj-$(CONFIG_BLOCK)	+= block/
+ obj-$(CONFIG_IO_URING)	+= io_uring/
+ obj-$(CONFIG_RUST)	+= rust/
+diff --git a/arch/x86/entry/syscalls/syscall_64.tbl b/arch/x86/entry/syscalls/syscall_64.tbl
+index 524155d..e56cd0c 100644
+--- a/arch/x86/entry/syscalls/syscall_64.tbl
++++ b/arch/x86/entry/syscalls/syscall_64.tbl
+@@ -396,6 +396,7 @@
+ 469	common	file_setattr		sys_file_setattr
+ 470	common	listns			sys_listns
+ 471	common	rseq_slice_yield	sys_rseq_slice_yield
++472	common	net_quota		sys_net_quota
+ 
+ #
+ # Due to a historical design error, certain syscalls are numbered differently
+diff --git a/include/asm-generic/syscalls.h b/include/asm-generic/syscalls.h
+index fabcefe..f0db600 100644
+--- a/include/asm-generic/syscalls.h
++++ b/include/asm-generic/syscalls.h
+@@ -4,6 +4,7 @@
+ 
+ #include <linux/compiler.h>
+ #include <linux/linkage.h>
++#include <linux/types.h>
+ 
+ /*
+  * Calling conventions for these system calls can differ, so
+@@ -26,4 +27,9 @@ asmlinkage long sys_mmap(unsigned long addr, unsigned long len,
+ asmlinkage long sys_rt_sigreturn(struct pt_regs *regs);
+ #endif
+ 
++#ifndef sys_net_quota
++asmlinkage long sys_net_quota(pid_t pid, u64 data_size,
++			      unsigned int period_sec);
++#endif
++
+ #endif /* __ASM_GENERIC_SYSCALLS_H */
+diff --git a/include/linux/syscalls.h b/include/linux/syscalls.h
+index 874d906..8f6f5bc 100644
+--- a/include/linux/syscalls.h
++++ b/include/linux/syscalls.h
+@@ -966,6 +966,8 @@ asmlinkage long sys_statx(int dfd, const char __user *path, unsigned flags,
+ asmlinkage long sys_rseq(struct rseq __user *rseq, uint32_t rseq_len,
+ 			 int flags, uint32_t sig);
+ asmlinkage long sys_rseq_slice_yield(void);
++asmlinkage long sys_net_quota(pid_t pid, u64 data_size,
++			      unsigned int period_sec);
+ asmlinkage long sys_open_tree(int dfd, const char __user *path, unsigned flags);
+ asmlinkage long sys_open_tree_attr(int dfd, const char __user *path,
+ 				   unsigned flags,
+-- 
+2.43.0
+

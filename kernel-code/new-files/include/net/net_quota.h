@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Socket-layer hooks of the network data quota (see kernel/net_quota.c).
+ * Socket-layer hooks of the network data quota (see net_quota/net_quota.c).
  *
  * Usage around any single transfer:
  *
@@ -53,7 +53,7 @@ struct net_quota_ticket {
 	size_t			trimmed;
 };
 
-/* Out-of-line slow paths, in kernel/net_quota.c */
+/* Out-of-line slow paths, in net_quota/net_quota.c */
 int __net_quota_begin(struct socket *sock, const struct sockaddr *peer,
 		      int peerlen, size_t *len, enum net_quota_dir dir,
 		      int flags, struct net_quota_ticket *t);

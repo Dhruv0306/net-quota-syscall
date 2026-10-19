@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Per-process network data quota (see kernel/net_quota.c).
+ * Per-process network data quota (see net_quota/net_quota.c).
  *
  * One struct net_quota_info lives inside each struct signal_struct, so all
  * threads of a process share a single quota and a single byte counter.

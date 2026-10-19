@@ -66,7 +66,8 @@ No privilege is needed: being an ancestor of the target is the permission.
    restricted process can spread traffic over children and move more than
    `limit` bytes in total.
 2. **Loopback is decided by the destination address**, not the interface.
-   Traffic to the machine's own non-loopback address is counted.
+   Traffic to the machine's own non-loopback address is counted, which is
+   what the tests rely on.
 3. A receive on an unconnected socket from a loopback sender is charged
    up-front and refunded afterwards; it can be refused if the quota is
    already used up.
