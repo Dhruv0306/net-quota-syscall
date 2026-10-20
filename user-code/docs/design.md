@@ -76,4 +76,6 @@ No privilege is needed: being an ancestor of the target is the permission.
 5. x86_64 only (no 32-bit or compat entry), requires `CONFIG_NET`, maximum
    period 7 days.
 6. Zero-copy and multishot variants of io_uring have not been checked.
-7. The kernel code has not been compiled or booted yet.
+7. Tested on one machine only (Ubuntu 24.04, x86_64, kernel 7.2.10 from
+   `make defconfig`), and not with the lockdep and atomic-sleep checks of
+   `config/net_quota_debug.config`.

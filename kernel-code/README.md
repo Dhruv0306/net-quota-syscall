@@ -29,9 +29,11 @@ kernel-code/
 
 ## Status
 
-The five patches apply cleanly, in order, on a pristine v7.2.10, and every API
-they use was checked against the 7.2.10 headers. The kernel code has **not
-been compiled or booted yet**; the first build is the first real test.
+The five patches apply cleanly, in order, on a pristine v7.2.10. The kernel has
+been built from them (`make defconfig` plus the `net_quota.config` fragment),
+booted as `7.2.10-netquota`, and passes every test in `user-code/tests`, with
+no new warnings in the kernel log. It has not been run with the debug options
+in `config/net_quota_debug.config` (lockdep and friends).
 
 ## Following the course steps on 7.2.10
 

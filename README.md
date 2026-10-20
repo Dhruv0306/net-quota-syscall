@@ -31,9 +31,10 @@ sudo ./tests/run_tests.sh
 
 ## Status
 
-The kernel patches apply cleanly on v7.2.10 and the user-space code compiles
-without warnings. The kernel side has not been built or booted yet, so the
-tests have not been run against it.
+The patches apply cleanly on v7.2.10, and the kernel builds and boots as
+`7.2.10-netquota`. The full test run passes (errors, limit and partial
+transfer, inheritance, timer, loopback exclusion, exit cleanup, UDP, threads,
+and a real program started with `nq_run`) with no new kernel log warnings.
 
 ## Branches
 
