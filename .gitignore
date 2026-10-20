@@ -430,6 +430,7 @@ FodyWeavers.xsd
 # Git & GitHub Files
 *.bundle
 *.patch
+!kernel-code/patches/*.patch
 
 # Build results of an MSBuild project
 *.builds
