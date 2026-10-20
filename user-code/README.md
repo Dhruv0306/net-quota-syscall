@@ -10,7 +10,8 @@ user-code/
 │   └── net_quota_msgs.h    every message text as an NQ_MSG_* #define
 ├── src/
 │   ├── net_quota.c         the wrapper (raw syscall + message formatting)
-│   ├── nq_cli.c            command line: nq_cli <pid> <bytes> <seconds>
+│   ├── nq_cli.c            nq_cli <pid> <bytes> <seconds> (only for your own descendants)
+│   ├── nq_run.c            nq_run <bytes> <seconds> <command...>: start any program with a quota
 │   └── nq_demo.c           direct syscall() and wrapper side by side (course add2Num style)
 ├── tests/
 │   ├── test_errors.c       every error path and message, no network needed
@@ -45,3 +46,20 @@ a test using `127.0.0.1` could never reach its limit. The quota looks at the
 destination address, not the interface, so the machine's own address works and
 no extra network setup is needed. `setup_netns.sh` is a fallback and needs
 `CONFIG_VETH`, which `make defconfig` does not enable.
+
+## Try it on real programs
+
+`nq_cli` can only restrict descendants of itself, so it cannot restrict a
+program started from another shell. `nq_run` starts the program for you,
+restricts it, then lets it run. Use the address of an echo server
+(`./build/net_server <ip> 5001`):
+
+```bash
+# 50 000 bytes allowed for 20 s; head tries to push 200 000
+./build/nq_run 50000 20 bash -c \
+  'exec 3<>/dev/tcp/<ip>/5001; head -c 200000 /dev/zero >&3; echo "head exit: $?"'
+# head: error writing 'standard output': Disk quota exceeded
+```
+
+An ordinary program knows nothing about quotas, so it just reports the stock
+EDQUOT text, "Disk quota exceeded".

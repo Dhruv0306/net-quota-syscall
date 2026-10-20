@@ -17,7 +17,7 @@ BUILD := build
 LIB   := $(BUILD)/net_quota.o
 COMMON := $(BUILD)/test_common.o
 TESTS := $(BUILD)/test_basic $(BUILD)/test_errors $(BUILD)/test_inherit
-BINS  := $(BUILD)/nq_cli $(BUILD)/nq_demo $(BUILD)/net_server $(TESTS)
+BINS  := $(BUILD)/nq_cli $(BUILD)/nq_run $(BUILD)/nq_demo $(BUILD)/net_server $(TESTS)
 
 all: $(BINS)
 
@@ -34,6 +34,9 @@ $(BUILD)/nq_cli: $(BUILD)/nq_cli.o $(LIB)
 	$(CC) $(LDFLAGS) $^ -o $@
 
 $(BUILD)/nq_demo: $(BUILD)/nq_demo.o $(LIB)
+	$(CC) $(LDFLAGS) $^ -o $@
+
+$(BUILD)/nq_run: $(BUILD)/nq_run.o $(LIB)
 	$(CC) $(LDFLAGS) $^ -o $@
 
 $(BUILD)/net_server: $(BUILD)/net_server.o
