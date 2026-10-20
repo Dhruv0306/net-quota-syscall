@@ -7,7 +7,7 @@ its own top-level directory with its own Makefile and header.
 
 ```
 kernel-code/
-├── new-files/                      copy onto the root of the kernel source
+├── new-files/                      the six new files; copy onto the root of the kernel source
 │   ├── net_quota/                  the course's add_syscall/ directory
 │   │   ├── net_quota.c               the system call and the quota logic
 │   │   ├── net_quota_syscall.h       prototype of sys_net_quota
@@ -62,7 +62,10 @@ to check the toolchain, exactly as the course does.
 
 ## Part B: add the system call (course "Implementation of New System Call")
 
-**Step 1 and 2: the directory and its files.** Copy them in:
+**Step 1 and 2: the directory and its files.** `new-files/` holds only the six
+new files. The eight existing kernel files that have to change are not copied
+here: they are changed by the patches in step 3, so there is one source of
+truth for each change. Copy the new files in:
 
 ```bash
 cp -r ~/net-quota-syscall/kernel-code/new-files/. /usr/src/linux-7.2.10/
