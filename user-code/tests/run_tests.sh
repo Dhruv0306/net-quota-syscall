@@ -15,11 +15,13 @@ set -u
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUILD="$HERE/../build"
 PORT=5001
+LOOP_PORT=5002
 failed=0
 USE_NETNS=0
 
 cleanup() {
 	[ -n "${SERVER_PID:-}" ] && kill "$SERVER_PID" 2>/dev/null
+	[ -n "${LOOP_PID:-}" ] && kill "$LOOP_PID" 2>/dev/null
 	[ "$USE_NETNS" -eq 1 ] && "$HERE/setup_netns.sh" down
 }
 trap cleanup EXIT
@@ -41,6 +43,8 @@ else
 	ip netns exec nqsrv "$BUILD/net_server" "$SERVER_IP" "$PORT" &
 fi
 SERVER_PID=$!
+"$BUILD/net_server" 127.0.0.1 "$LOOP_PORT" &
+LOOP_PID=$!
 sleep 1
 echo "test server on $SERVER_IP:$PORT"
 
@@ -53,6 +57,8 @@ run() {
 run "$BUILD/test_errors"
 run "$BUILD/test_basic" --server "$SERVER_IP" --port "$PORT"
 run "$BUILD/test_inherit" --server "$SERVER_IP" --port "$PORT"
+run "$BUILD/test_timer" --server "$SERVER_IP" --port "$PORT"
+run "$BUILD/test_loopback" --server "$SERVER_IP" --port "$PORT" --loop-port "$LOOP_PORT"
 
 if [ "$failed" -eq 0 ]; then echo "ALL TESTS PASSED"; else echo "SOME TESTS FAILED"; fi
 exit "$failed"

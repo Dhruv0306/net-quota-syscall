@@ -17,6 +17,8 @@ user-code/
 │   ├── test_errors.c       every error path and message, no network needed
 │   ├── test_basic.c        parent, child, grandchild: limit, partial, EDQUOT, expiry
 │   ├── test_inherit.c      a forked child inherits its own quota
+│   ├── test_timer.c        the expiry timer fires with no network activity
+│   ├── test_loopback.c     loopback and AF_UNIX are not counted
 │   ├── test_common.[ch]    shared helpers
 │   ├── net_server.c        echo server for the tests
 │   ├── setup_netns.sh      optional veth + namespace (needs CONFIG_VETH)
