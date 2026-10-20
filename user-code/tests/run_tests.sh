@@ -59,6 +59,7 @@ run "$BUILD/test_basic" --server "$SERVER_IP" --port "$PORT"
 run "$BUILD/test_inherit" --server "$SERVER_IP" --port "$PORT"
 run "$BUILD/test_timer" --server "$SERVER_IP" --port "$PORT"
 run "$BUILD/test_loopback" --server "$SERVER_IP" --port "$PORT" --loop-port "$LOOP_PORT"
+run "$HERE/test_realprog.sh" "$BUILD" "$SERVER_IP" "$PORT"
 
 if [ "$failed" -eq 0 ]; then echo "ALL TESTS PASSED"; else echo "SOME TESTS FAILED"; fi
 exit "$failed"

@@ -19,6 +19,7 @@ user-code/
 │   ├── test_inherit.c      a forked child inherits its own quota
 │   ├── test_timer.c        the expiry timer fires with no network activity
 │   ├── test_loopback.c     loopback and AF_UNIX are not counted
+│   ├── test_realprog.sh    dd started with nq_run is stopped by the quota
 │   ├── test_common.[ch]    shared helpers
 │   ├── net_server.c        echo server for the tests
 │   ├── setup_netns.sh      optional veth + namespace (needs CONFIG_VETH)
