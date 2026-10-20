@@ -1,0 +1,59 @@
+aoscsg623@user:~$ su -
+Password: 
+root@user:~# cd /home/aoscsg623/Downloads/net-quota-syscall/user-code/
+root@user:/home/aoscsg623/Downloads/net-quota-syscall/user-code# ./tests/run_tests.sh 
+test server on 10.8.1.52:5001
+=== /home/aoscsg623/Downloads/net-quota-syscall/user-code/tests/../build/test_errors ===
+test_errors
+  ok   [10411] pid 0 -> Invalid argument
+  ok   [10411] negative pid -> Invalid argument
+  ok   [10411] size 0 -> Invalid argument
+  ok   [10411] period 0 -> Invalid argument
+  ok   [10411] period above the maximum -> Invalid argument
+  ok   [10411] calling process itself -> Operation not permitted
+  ok   [10411] pid 1 (an ancestor) -> No such process
+  ok   [10411] exited process -> No such process
+  ok   [10411] a process cannot restrict its sibling (errno 3)
+  ok   [10411] child restricted
+  ok   [10411] second call: already set, nothing overwritten
+  ok   [10411] EDQUOT message: "Process 42 exceeded the maximum network data quota of 1000 bytes"
+  ok   [10411] already-set message: "Process 42: a network data limit is already set, the requested 1000 bytes were not applied"
+  ok   [10411] ENOSYS message: "The net_quota system call is not available: boot the net-quota kernel"
+test_errors: PASSED
+
+=== /home/aoscsg623/Downloads/net-quota-syscall/user-code/tests/../build/test_basic --server 10.8.1.52 --port 5001 ===
+test_basic: limit 10000 bytes, period 4 s
+  ok   [10416] limit set on grandchild 10418
+  ok   [10416] second call says the limit is already set
+Process 10418: a network data limit is already set, the requested 10000 bytes were not applied
+  ok   [10418] connected to 10.8.1.52:5001
+  ok   [10418] send 3000 bytes inside the quota (got 3000)
+  ok   [10418] recv 3000 echoed bytes, counted on the same counter (got 3000)
+  ok   [10418] send 8000: shortened to the 4000 bytes left (got 4000)
+  ok   [10418] send at the limit fails with EDQUOT
+Process 10418 exceeded the maximum network data quota of 10000 bytes
+  ok   [10418] recv at the limit fails with EDQUOT
+  ..   [10418] waiting 6 s for the quota to expire
+  ok   [10418] send works again after the period (got 1000)
+  ok   [10418] recv works again after the period (got 5000)
+  ok   [10416] grandchild finished with all checks passed
+test_basic: PASSED
+
+=== /home/aoscsg623/Downloads/net-quota-syscall/user-code/tests/../build/test_inherit --server 10.8.1.52 --port 5001 ===
+test_inherit: limit 6000 bytes, period 30 s
+  ok   [10423] limit set on child A (10424)
+  ok   [10423] grandchild B (10425) already has an inherited quota
+  ok   [10424] A connected
+  ok   [10425] B connected
+  ok   [10424] A sent 6000 of its own 6000 bytes before the limit
+  ok   [10424] A then got EDQUOT
+Process 10424 exceeded the maximum network data quota of 6000 bytes
+  ok   [10425] B sent 6000 of its own 6000 bytes before the limit
+  ok   [10425] B then got EDQUOT
+Process 10425 exceeded the maximum network data quota of 6000 bytes
+  ok   [10423] A and B each used their own full limit
+test_inherit: PASSED
+
+ALL TESTS PASSED
+root@user:/home/aoscsg623/Downloads/net-quota-syscall/user-code# 
+
