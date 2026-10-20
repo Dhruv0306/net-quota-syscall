@@ -12,7 +12,8 @@ Target platform: Ubuntu 24.04 on x86_64, Linux kernel 7.2.10 (custom build).
 ```
 net-quota-syscall/
 ├── kernel-code/     net_quota/ directory, headers and patches for the kernel tree
-└── user-code/       wrapper library, CLI, tests and design notes
+├── user-code/       wrapper library, CLI, tests and design notes
+└── docs/            how the data flows through user space and the kernel
 ```
 
 ## Quick start
@@ -26,7 +27,9 @@ make
 sudo ./tests/run_tests.sh
 ```
 
-3. Read [user-code/docs/design.md](user-code/docs/design.md) for the decisions
+3. Read [docs/how-it-works.md](docs/how-it-works.md) to see how input and output
+   flow through user space and the kernel, with diagrams.
+4. Read [user-code/docs/design.md](user-code/docs/design.md) for the decisions
    and known limitations.
 
 ## Status
