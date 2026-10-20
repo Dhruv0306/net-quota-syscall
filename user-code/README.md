@@ -20,10 +20,11 @@ user-code/
 │   ├── test_timer.c        the expiry timer fires with no network activity
 │   ├── test_loopback.c     loopback and AF_UNIX are not counted
 │   ├── test_realprog.sh    dd started with nq_run is stopped by the quota
+│   ├── test_exit.c         quotas vanish with their process in every state
 │   ├── test_common.[ch]    shared helpers
 │   ├── net_server.c        echo server for the tests
 │   ├── setup_netns.sh      optional veth + namespace (needs CONFIG_VETH)
-│   └── run_tests.sh        starts the server, runs the tests, cleans up
+│   └── run_tests.sh        starts the servers, runs the tests, checks the kernel log
 ├── docs/design.md
 └── Makefile
 ```

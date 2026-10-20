@@ -17,7 +17,7 @@ BUILD := build
 LIB   := $(BUILD)/net_quota.o
 COMMON := $(BUILD)/test_common.o
 TESTS := $(BUILD)/test_basic $(BUILD)/test_errors $(BUILD)/test_inherit \
-         $(BUILD)/test_timer $(BUILD)/test_loopback
+         $(BUILD)/test_timer $(BUILD)/test_loopback $(BUILD)/test_exit
 BINS  := $(BUILD)/nq_cli $(BUILD)/nq_run $(BUILD)/nq_demo $(BUILD)/net_server $(TESTS)
 
 all: $(BINS)

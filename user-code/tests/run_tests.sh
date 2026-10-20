@@ -19,6 +19,10 @@ LOOP_PORT=5002
 failed=0
 USE_NETNS=0
 
+# Lines that mean the kernel complained. Counted before and after, so that
+# boot-time noise does not matter; only new lines count.
+log_problems() { dmesg 2>/dev/null | grep -cE 'BUG:|WARNING:|Oops|lockdep|cut here|net_quota'; }
+
 cleanup() {
 	[ -n "${SERVER_PID:-}" ] && kill "$SERVER_PID" 2>/dev/null
 	[ -n "${LOOP_PID:-}" ] && kill "$LOOP_PID" 2>/dev/null
@@ -47,6 +51,7 @@ SERVER_PID=$!
 LOOP_PID=$!
 sleep 1
 echo "test server on $SERVER_IP:$PORT"
+LOG_BEFORE=$(log_problems)
 
 run() {
 	echo "=== $* ==="
@@ -59,7 +64,17 @@ run "$BUILD/test_basic" --server "$SERVER_IP" --port "$PORT"
 run "$BUILD/test_inherit" --server "$SERVER_IP" --port "$PORT"
 run "$BUILD/test_timer" --server "$SERVER_IP" --port "$PORT"
 run "$BUILD/test_loopback" --server "$SERVER_IP" --port "$PORT" --loop-port "$LOOP_PORT"
+run "$BUILD/test_exit" --server "$SERVER_IP" --port "$PORT"
 run "$HERE/test_realprog.sh" "$BUILD" "$SERVER_IP" "$PORT"
+
+LOG_AFTER=$(log_problems)
+if [ "$LOG_AFTER" -gt "$LOG_BEFORE" ]; then
+	echo "KERNEL LOG: new warnings since the tests started:"
+	dmesg | grep -E 'BUG:|WARNING:|Oops|lockdep|cut here|net_quota' | tail -10
+	failed=1
+else
+	echo "kernel log: no new warnings or oopses"
+fi
 
 if [ "$failed" -eq 0 ]; then echo "ALL TESTS PASSED"; else echo "SOME TESTS FAILED"; fi
 exit "$failed"
