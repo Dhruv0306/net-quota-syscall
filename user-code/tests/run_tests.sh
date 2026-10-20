@@ -16,6 +16,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUILD="$HERE/../build"
 PORT=5001
 LOOP_PORT=5002
+UDP_PORT=5003
 failed=0
 USE_NETNS=0
 
@@ -26,6 +27,7 @@ log_problems() { dmesg 2>/dev/null | grep -cE 'BUG:|WARNING:|Oops|lockdep|cut he
 cleanup() {
 	[ -n "${SERVER_PID:-}" ] && kill "$SERVER_PID" 2>/dev/null
 	[ -n "${LOOP_PID:-}" ] && kill "$LOOP_PID" 2>/dev/null
+	[ -n "${UDP_PID:-}" ] && kill "$UDP_PID" 2>/dev/null
 	[ "$USE_NETNS" -eq 1 ] && "$HERE/setup_netns.sh" down
 }
 trap cleanup EXIT
@@ -49,6 +51,12 @@ fi
 SERVER_PID=$!
 "$BUILD/net_server" 127.0.0.1 "$LOOP_PORT" &
 LOOP_PID=$!
+if [ "$USE_NETNS" -eq 1 ]; then
+	ip netns exec nqsrv "$BUILD/net_server" "$SERVER_IP" "$UDP_PORT" udp &
+else
+	"$BUILD/net_server" "$SERVER_IP" "$UDP_PORT" udp &
+fi
+UDP_PID=$!
 sleep 1
 echo "test server on $SERVER_IP:$PORT"
 LOG_BEFORE=$(log_problems)
@@ -65,6 +73,8 @@ run "$BUILD/test_inherit" --server "$SERVER_IP" --port "$PORT"
 run "$BUILD/test_timer" --server "$SERVER_IP" --port "$PORT"
 run "$BUILD/test_loopback" --server "$SERVER_IP" --port "$PORT" --loop-port "$LOOP_PORT"
 run "$BUILD/test_exit" --server "$SERVER_IP" --port "$PORT"
+run "$BUILD/test_udp" --server "$SERVER_IP" --port "$UDP_PORT"
+run "$BUILD/test_threads" --server "$SERVER_IP" --port "$PORT"
 run "$HERE/test_realprog.sh" "$BUILD" "$SERVER_IP" "$PORT"
 
 LOG_AFTER=$(log_problems)

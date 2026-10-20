@@ -2,11 +2,14 @@
 /*
  * net_server: tiny TCP echo server for the quota tests.
  *
- *     net_server <bind-ip> <port>
+ *     net_server <bind-ip> <port> [udp]
  *
  * Every connection is served by its own child process, which echoes what it
  * receives until the peer closes. Run it in the other network namespace
  * (see setup_netns.sh) so that the traffic is not loopback.
+ *
+ * With the extra argument "udp" it is a UDP echo server instead: every
+ * datagram is sent straight back to its sender.
  */
 #include <arpa/inet.h>
 #include <errno.h>
@@ -36,13 +39,39 @@ static void echo_loop(int fd)
 	}
 }
 
+static int run_udp(const struct sockaddr_in *addr)
+{
+	char buf[2048];
+	struct sockaddr_in peer;
+	socklen_t plen;
+	int fd = socket(AF_INET, SOCK_DGRAM, 0);
+
+	if (fd < 0 || bind(fd, (const struct sockaddr *)addr, sizeof(*addr))) {
+		perror("net_server udp");
+		return 1;
+	}
+	for (;;) {
+		ssize_t n;
+
+		plen = sizeof(peer);
+		n = recvfrom(fd, buf, sizeof(buf), 0, (struct sockaddr *)&peer, &plen);
+		if (n < 0) {
+			if (errno == EINTR)
+				continue;
+			perror("recvfrom");
+			return 1;
+		}
+		sendto(fd, buf, (size_t)n, 0, (struct sockaddr *)&peer, plen);
+	}
+}
+
 int main(int argc, char **argv)
 {
 	struct sockaddr_in addr = { .sin_family = AF_INET };
 	int one = 1, lfd;
 
-	if (argc != 3) {
-		fprintf(stderr, "usage: %s <bind-ip> <port>\n", argv[0]);
+	if (argc != 3 && !(argc == 4 && !strcmp(argv[3], "udp"))) {
+		fprintf(stderr, "usage: %s <bind-ip> <port> [udp]\n", argv[0]);
 		return 2;
 	}
 	if (inet_pton(AF_INET, argv[1], &addr.sin_addr) != 1) {
@@ -50,6 +79,8 @@ int main(int argc, char **argv)
 		return 2;
 	}
 	addr.sin_port = htons((unsigned short)atoi(argv[2]));
+	if (argc == 4)
+		return run_udp(&addr);
 
 	signal(SIGCHLD, SIG_IGN);	/* no zombies */
 	signal(SIGPIPE, SIG_IGN);

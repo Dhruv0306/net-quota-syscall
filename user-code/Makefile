@@ -9,7 +9,8 @@
 
 CC       ?= gcc
 CFLAGS   ?= -O2 -g
-CFLAGS   += -std=gnu11 -Wall -Wextra -Wshadow
+CFLAGS   += -std=gnu11 -Wall -Wextra -Wshadow -pthread
+LDFLAGS  += -pthread
 KERNEL_UAPI ?= ../kernel-code/new-files/include/uapi
 CPPFLAGS += -Iinclude -Itests -I$(KERNEL_UAPI)
 
@@ -17,7 +18,8 @@ BUILD := build
 LIB   := $(BUILD)/net_quota.o
 COMMON := $(BUILD)/test_common.o
 TESTS := $(BUILD)/test_basic $(BUILD)/test_errors $(BUILD)/test_inherit \
-         $(BUILD)/test_timer $(BUILD)/test_loopback $(BUILD)/test_exit
+         $(BUILD)/test_timer $(BUILD)/test_loopback $(BUILD)/test_exit \
+         $(BUILD)/test_udp $(BUILD)/test_threads
 BINS  := $(BUILD)/nq_cli $(BUILD)/nq_run $(BUILD)/nq_demo $(BUILD)/net_server $(TESTS)
 
 all: $(BINS)

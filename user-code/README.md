@@ -21,8 +21,10 @@ user-code/
 │   ├── test_loopback.c     loopback and AF_UNIX are not counted
 │   ├── test_realprog.sh    dd started with nq_run is stopped by the quota
 │   ├── test_exit.c         quotas vanish with their process in every state
+│   ├── test_udp.c          datagrams are refused whole, receives are cut
+│   ├── test_threads.c      four threads share one quota exactly
 │   ├── test_common.[ch]    shared helpers
-│   ├── net_server.c        echo server for the tests
+│   ├── net_server.c        TCP echo server, or UDP with the argument "udp"
 │   ├── setup_netns.sh      optional veth + namespace (needs CONFIG_VETH)
 │   └── run_tests.sh        starts the servers, runs the tests, checks the kernel log
 ├── docs/design.md
