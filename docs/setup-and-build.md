@@ -5,47 +5,144 @@ call, in the order they are run. It follows the course reading material
 (untar, configure, `make`, `make modules_install`, `make install`, reboot),
 for Linux 7.2.10 instead of 5.19.8.
 
-```mermaid
-flowchart LR
-  A["1. Get the kernel source<br/>and this repo"] --> B["2. Copy the new files<br/>apply the 5 patches"]
-  B --> C["3. Configure<br/>merge net_quota.config"]
-  C --> D["4. Build<br/>make"]
-  D --> E["5. Install<br/>modules and kernel"]
-  E --> F["6. Update GRUB"]
-  F --> G["7. Reboot into<br/>7.2.10-netquota"]
-  G --> H["8. Check and run<br/>the tests"]
-```
+Assumptions: Ubuntu 24.04 on x86_64, and an original kernel that stays in the
+GRUB menu as a fallback. A bad kernel can fail to boot, so do not remove the
+original kernel. The course advises trying this in a virtual machine first.
 
-Assumptions: Ubuntu 24.04 on x86_64, the kernel 7.2.10 tarball from
-[kernel.org](https://www.kernel.org), and an original kernel that stays in the
-GRUB menu as a fallback. The course advises trying this in a virtual machine
-first. A bad kernel can fail to boot, so do not remove the original kernel.
+The work has two parts, as in the course:
 
-## 0. Open a root shell and set two variables
+| Part | What it does | Result after the reboot |
+|---|---|---|
+| A | builds and boots a plain 7.2.10 kernel, with no changes | `uname -r` prints `7.2.10` |
+| B | adds the net_quota code, rebuilds and boots again | `uname -r` prints `7.2.10-netquota` |
+
+Part A shows that the build tools, the install and GRUB work before any of our
+code is involved, and it leaves a plain 7.2.10 kernel as a second fallback. If
+you already built and booted a plain 7.2.10 kernel, skip to Part B.
+
+---
+
+## Part A. Build and boot a plain Linux 7.2.10 kernel
+
+### A1. Download the kernel and open a root shell
+
+- Download the 7.2.10 tarball (`linux-7.2.10.tar.xz`) from
+  [kernel.org](https://www.kernel.org).
+- Open a terminal and become the root (privileged) user:
 
 ```bash
-sudo su
-KSRC=/usr/src/linux-7.2.10            # the kernel source
+sudo su        # if this does not work, try: su -
+```
+
+- When prompted, type the password.
+
+### A2. Move the tarball to `/usr/src`
+
+```bash
+cd /usr/src
+
+# Find the tarball. Under "sudo su", ~ may mean /root and not your own home folder,
+# so use the full path of your Downloads folder if this finds nothing.
+ls ~/Downloads/linux-7.2.10.tar.xz
+
+mv ~/Downloads/linux-7.2.10.tar.xz .          # if it is in Downloads
+mv /path/to/linux-7.2.10.tar.xz .             # if it is somewhere else
+
+# Verify
+ls -ld linux-7.2.10.tar.xz
+```
+
+### A3. Install the build dependencies
+
+```bash
+# Update the apt listings
+apt update
+
+# Install the build dependencies
+apt install -y build-essential flex bison libssl-dev libelf-dev libncurses-dev bc dwarves pkg-config libdw-dev rsync kmod ccache libcap-dev debhelper dpkg-dev binutils gawk pahole cpio git
+```
+
+### A4. Extract the source
+
+```bash
+tar -xvf linux-7.2.10.tar.xz
+cd linux-7.2.10
+```
+
+### A5. Start from the configuration of the running kernel
+
+```bash
+uname -r                           # the running kernel's version
+cp /boot/config-$(uname -r) .config
+
+# Ubuntu's configuration names a certificate file that is not in the upstream
+# source and stops the build. Clear the two settings:
+scripts/config --set-str SYSTEM_TRUSTED_KEYS "" --set-str SYSTEM_REVOCATION_KEYS ""
+
+make olddefconfig                  # fill in the settings the new kernel has and the old one lacks
+```
+
+### A6. Compile
+
+```bash
+make -j$(nproc)
+```
+
+A good run ends with `Kernel: arch/x86/boot/bzImage is ready`.
+
+### A7. Install the modules and the kernel
+
+```bash
+ls -lh arch/x86/boot/bzImage            # verify the kernel image
+
+make modules_install                    # install the kernel modules
+ls -ld /lib/modules/7.2.10              # verify
+
+make install                            # install the kernel
+
+# Verify
+ls -lh /boot/vmlinuz-7.2.10
+ls -lh /boot/System.map-7.2.10
+```
+
+### A8. Update GRUB
+
+```bash
+update-grub
+
+grep -E 'menuentry.*7.2.10' /boot/grub/grub.cfg      # verify
+```
+
+### A9. Reboot and check
+
+Reboot the machine. At the GRUB menu choose **Advanced options for Ubuntu**,
+then the 7.2.10 kernel. Once it has started:
+
+```bash
+uname -r                                # should print 7.2.10
+```
+
+---
+
+## Part B. Add net_quota and boot the new kernel
+
+### B1. Set two variables and get this repo
+
+Still in a root shell (`sudo su`):
+
+```bash
+KSRC=/usr/src/linux-7.2.10            # the kernel source from Part A
 NQ=/path/to/net-quota-syscall         # absolute path of this repo
 ```
 
 `NQ` must be an absolute path, because the commands below change directory.
 
-## 1. Get the kernel source and this repo
-
 ```bash
-apt update
-apt install -y build-essential flex bison libssl-dev libelf-dev bc git
-
-cd /usr/src
-# put linux-7.2.10.tar.xz (from kernel.org) here, then:
-tar -xvf linux-7.2.10.tar.xz
-
 git clone https://github.com/Dhruv0306/net-quota-syscall.git "$NQ"   # skip if you already have it
 head -5 $KSRC/Makefile                # VERSION = 7, PATCHLEVEL = 2, SUBLEVEL = 10
 ```
 
-## 2. Copy the new files and apply the patches
+### B2. Copy the new files and apply the patches
 
 `new-files/` holds the six new files, and the five patches make every change
 to existing kernel files.
@@ -76,27 +173,27 @@ You should see `obj-y += net_quota/` in `Kbuild`, the line
 `472  common  net_quota  sys_net_quota` in the table, and one declaration in
 each of the two `syscalls.h` files. Any `.rej` file means a patch did not fit.
 
-## 3. Configure
+### B3. Configure
 
-Keep your existing `.config` if you have built this kernel before. For a fresh
-start, which is what the course uses, run `make defconfig` first.
+The `.config` from Part A is already in `$KSRC`: keep it. (For a fresh start,
+which is what the course uses, run `make defconfig` first.) Add the net_quota
+fragment:
 
 ```bash
 cd $KSRC
-# make defconfig                      # only for a fresh configuration
 scripts/kconfig/merge_config.sh -m .config $NQ/kernel-code/config/net_quota.config
 make olddefconfig
 grep -E '^CONFIG_(NET|INET|LOCALVERSION)=' .config
 ```
 
 Expected: `CONFIG_NET=y`, `CONFIG_INET=y` and `CONFIG_LOCALVERSION="-netquota"`.
-The fragment gives the build its own name, so it cannot overwrite a plain
-7.2.10 kernel you installed earlier.
+The fragment gives the build its own name, so it cannot overwrite the plain
+7.2.10 kernel from Part A.
 
 Optional while developing: `config/net_quota_debug.config` turns on lockdep and
 sleeping-in-atomic checks. Merge it the same way, then run `make olddefconfig`.
 
-## 4. Build
+### B4. Build
 
 ```bash
 cd $KSRC
@@ -111,14 +208,15 @@ stops, find the first error:
 grep -n -m3 -E "error|Error" ~/build.log
 ```
 
-## 5. Install the modules and the kernel
+### B5. Install the modules and the kernel
 
 ```bash
-make modules_install && make modules_install install
+make modules_install
+make install
 ```
 
-This is the course's command. The second `modules_install` does nothing new;
-`make install` alone would do. Together they:
+The course runs `make modules_install && make modules_install install`, which
+does the same. Together they:
 
 | Installed | Where |
 |---|---|
@@ -128,10 +226,17 @@ This is the course's command. The second `modules_install` does nothing new;
 | Initial RAM disk | `/boot/initrd.img-7.2.10-netquota` (through `update-initramfs`) |
 | GRUB entry | through `update-grub` |
 
+Verify:
+
+```bash
+ls -ld /lib/modules/7.2.10-netquota
+ls -lh /boot/vmlinuz-7.2.10-netquota
+```
+
 Messages from `dkms` about other modules (for example VirtualBox) during the
 install are warnings and do not stop the install.
 
-## 6. Update GRUB
+### B6. Update GRUB
 
 `make install` normally runs both steps by itself. Run them again to be sure,
 or if the entry is missing:
@@ -146,10 +251,10 @@ The output of `update-grub` should include
 
 ```bash
 ls /boot | grep netquota
-grep -n "7.2.10-netquota" /boot/grub/grub.cfg | head -3
+grep -E 'menuentry.*7.2.10-netquota' /boot/grub/grub.cfg | head -3
 ```
 
-## 7. Reboot into the new kernel
+### B7. Reboot into the new kernel
 
 ```bash
 reboot
@@ -161,7 +266,7 @@ At the GRUB menu choose **Advanced options for Ubuntu**, then
 on, an unsigned custom kernel will not start: turn Secure Boot off or sign the
 kernel.
 
-## 8. Check that it is the right kernel
+### B8. Check that it is the right kernel
 
 ```bash
 uname -r                                  # 7.2.10-netquota
@@ -182,6 +287,8 @@ sudo dmesg | grep -E 'BUG:|WARNING:|Oops|lockdep|net_quota'    # prints nothing
 The test runner also compares the kernel log before and after, and prints
 `kernel log: no new warnings or oopses`.
 
+---
+
 ## After you change the kernel code
 
 Edit the files in `$KSRC`, then only the changed parts are rebuilt:
@@ -196,10 +303,11 @@ A change to `signal.h` rebuilds almost everything; a change to
 `kernel-code/new-files/`, and regenerate the patches for changed existing files
 with `git format-patch`, so the repo stays the source of truth.
 
-## Go back to the original kernel
+## Go back to another kernel
 
-Restart, choose **Advanced options for Ubuntu** and pick the original kernel.
-To remove the net_quota kernel completely:
+Restart, choose **Advanced options for Ubuntu** and pick the kernel you want:
+the original one, or the plain 7.2.10 from Part A. To remove the net_quota
+kernel completely (the plain 7.2.10 and the original stay):
 
 ```bash
 rm -f /boot/vmlinuz-7.2.10-netquota /boot/initrd.img-7.2.10-netquota \
@@ -213,12 +321,12 @@ update-grub
 | What you see | Cause and fix |
 |---|---|
 | `./build/nq_cli` says "not available: boot the net-quota kernel" | the syscall returned `ENOSYS`: you booted another kernel. Check `uname -r`, restart and pick the netquota entry |
-| `patch` prints `Hunk FAILED` or leaves `.rej` files | the source is not exactly 7.2.10, or a patch was applied twice. Extract a fresh copy of the source and repeat step 2 |
+| `patch` prints `Hunk FAILED` or leaves `.rej` files | the source is not exactly 7.2.10, or a patch was applied twice. Extract a fresh copy of the source and repeat B2 |
 | `make` stops with `Killed` | out of memory. Run `make -j2` (it resumes where it stopped) |
-| `No rule to make target 'debian/canonical-certs.pem'` | an Ubuntu `.config` was copied in. Run `scripts/config --set-str SYSTEM_TRUSTED_KEYS "" --set-str SYSTEM_REVOCATION_KEYS ""`, then `make olddefconfig` |
+| `No rule to make target 'debian/canonical-certs.pem'` | an Ubuntu `.config` was copied in and A5 was skipped. Run `scripts/config --set-str SYSTEM_TRUSTED_KEYS "" --set-str SYSTEM_REVOCATION_KEYS ""`, then `make olddefconfig` |
 | `make` asks for `pahole` or BTF errors | `apt install dwarves`, or `scripts/config --disable DEBUG_INFO_BTF` and `make olddefconfig` |
 | The new kernel is not in the GRUB menu | run `update-grub` and look for the `Found linux image` line for `7.2.10-netquota` |
-| The new kernel does not start | restart and pick the original kernel, then check Secure Boot and `~/build.log` |
+| The new kernel does not start | restart and pick another kernel, then check Secure Boot and `~/build.log` |
 | Tests fail with `connection refused` | the test server could not start. Run `ip -4 addr` and pass an address: `sudo SERVER_IP=<address> ./tests/run_tests.sh` |
 
 For how the system call works once it is running, see
