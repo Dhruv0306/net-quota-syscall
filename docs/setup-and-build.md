@@ -52,7 +52,14 @@ mv /path/to/linux-7.2.10.tar.xz .             # if it is somewhere else
 ls -ld linux-7.2.10.tar.xz
 ```
 
-### A3. Install the build dependencies
+### A3. Extract the source
+
+```bash
+tar -xvf linux-7.2.10.tar.xz
+cd linux-7.2.10
+```
+
+### A4. Install the build dependencies
 
 ```bash
 # Update the apt listings
@@ -60,13 +67,6 @@ apt update
 
 # Install the build dependencies
 apt install -y build-essential flex bison libssl-dev libelf-dev libncurses-dev bc dwarves pkg-config libdw-dev rsync kmod ccache libcap-dev debhelper dpkg-dev binutils gawk pahole cpio git
-```
-
-### A4. Extract the source
-
-```bash
-tar -xvf linux-7.2.10.tar.xz
-cd linux-7.2.10
 ```
 
 ### A5. Start from the configuration of the running kernel
