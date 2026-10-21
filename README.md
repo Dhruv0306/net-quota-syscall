@@ -13,12 +13,14 @@ Target platform: Ubuntu 24.04 on x86_64, Linux kernel 7.2.10 (custom build).
 net-quota-syscall/
 ├── kernel-code/     net_quota/ directory, headers and patches for the kernel tree
 ├── user-code/       wrapper library, CLI, tests and design notes
-└── docs/            how the data flows through user space and the kernel
+└── docs/            setup and build guide, and how the data flows through the system
 ```
 
 ## Quick start
 
-1. Build and boot the patched kernel: [kernel-code/README.md](kernel-code/README.md)
+1. Build and boot the patched kernel, every command from source to reboot:
+   [docs/setup-and-build.md](docs/setup-and-build.md) (short version:
+   [kernel-code/README.md](kernel-code/README.md))
 2. Build the user-space side and run the tests:
 
 ```bash

@@ -27,6 +27,11 @@ kernel-code/
     └── net_quota_debug.config      optional lockdep / atomic-sleep checks
 ```
 
+The full step-by-step guide, with the GRUB update, the reboot, the checks and
+what to do when something fails, is
+[docs/setup-and-build.md](../docs/setup-and-build.md). This page is the short
+version.
+
 ## Status
 
 The five patches apply cleanly, in order, on a pristine v7.2.10. The kernel has
