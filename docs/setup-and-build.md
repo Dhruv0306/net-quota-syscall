@@ -43,9 +43,9 @@ cd /usr/src
 
 # Find the tarball. Under "sudo su", ~ may mean /root and not your own home folder,
 # so use the full path of your Downloads folder if this finds nothing.
-ls ~/Downloads/linux-7.2.10.tar.xz
+ls /home/<your current user name>/Downloads/linux-7.2.10.tar.xz
 
-mv ~/Downloads/linux-7.2.10.tar.xz .          # if it is in Downloads
+mv /home/<your current user name>/Downloads/linux-7.2.10.tar.xz .          # if it is in Downloads
 mv /path/to/linux-7.2.10.tar.xz .             # if it is somewhere else
 
 # Verify
