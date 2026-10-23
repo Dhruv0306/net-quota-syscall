@@ -54,8 +54,6 @@ struct net_quota_info {
 
 /* Lifecycle, called from kernel/fork.c and kernel/exit.c */
 void net_quota_init(struct net_quota_info *nq);
-void net_quota_inherit(struct net_quota_info *child,
-		       struct net_quota_info *parent);
 void net_quota_exit(struct net_quota_info *nq);
 
 /* Called by sys_net_quota(); returns 0 or a negative NQ_E_* error. */

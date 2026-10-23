@@ -18,9 +18,9 @@
  *    (partial transfer) where that is safe, see __net_quota_begin();
  *  - only AF_INET/AF_INET6 sockets whose peer is not a loopback address
  *    are counted;
- *  - a child created by fork() of a restricted process inherits its own
- *    copy of the quota (same limit and period, fresh counter, and its own
- *    window, which starts at the fork);
+ *  - a child created by fork() does not inherit the quota: it starts with no
+ *    limit and no timer, whatever its parent has (threads, which share the
+ *    parent's signal_struct, are of course covered by the same quota);
  *  - the quota disappears when the process exits.
  *
  * The state lives in struct signal_struct (shared by all threads of the
@@ -85,45 +85,10 @@ void net_quota_init(struct net_quota_info *nq)
 }
 
 /*
- * Called from copy_signal() after net_quota_init(): a child of a restricted
- * process gets its own quota with the same limit and period and a fresh
- * counter. The limit is set at the fork, so the child's window starts now and
- * runs for the full period. A parent whose quota was already revoked passes on
- * nothing.
- *
- * The child's timer is armed here, so whoever fails the fork later must call
- * net_quota_exit() before freeing the child's signal_struct.
- */
-void net_quota_inherit(struct net_quota_info *child,
-		       struct net_quota_info *parent)
-{
-	u64 limit = 0;
-	unsigned int period_sec = 0;
-
-	/*
-	 * Most parents have no quota: look without the lock. This also keeps us
-	 * from locking the quota of init_task's static init_signals, which
-	 * net_quota_init() never initialised.
-	 */
-	if (likely(READ_ONCE(parent->state) == NQ_STATE_NONE))
-		return;
-
-	spin_lock_bh(&parent->lock);
-	if (parent->state != NQ_STATE_NONE) {
-		limit = parent->limit;
-		period_sec = parent->period_sec;
-	}
-	spin_unlock_bh(&parent->lock);
-
-	if (period_sec)
-		net_quota_install(child, limit, period_sec);
-}
-
-/*
- * Called from do_exit() when the last thread of the process is exiting, and
- * when fork() fails after copy_signal(). Always marks the process dead, even
- * if it has no quota: a quota installed after this point would arm a timer
- * that nobody stops before the signal_struct is freed.
+ * Called from do_exit() when the last thread of the process is exiting.
+ * Always marks the process dead, even if it has no quota: a quota installed
+ * after this point would arm a timer that nobody stops before the
+ * signal_struct is freed.
  */
 void net_quota_exit(struct net_quota_info *nq)
 {

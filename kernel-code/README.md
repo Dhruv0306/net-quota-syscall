@@ -18,11 +18,12 @@ kernel-code/
 │       └── uapi/linux/net_quota.h    NQ_* return codes shared with user space
 ├── patches/                        edits to existing kernel files
 │   ├── 0001  include/linux/sched/signal.h   quota field in signal_struct
-│   ├── 0002  kernel/fork.c                  init and inherit in copy_signal()
+│   ├── 0002  kernel/fork.c                  init and inherit in copy_signal() (inherit removed by 0007)
 │   ├── 0003  kernel/exit.c                  clear the quota in do_exit()
 │   ├── 0004  net/socket.c                   count sends and receives
 │   ├── 0005  Kbuild, syscall_64.tbl, asm-generic/syscalls.h, linux/syscalls.h
-│   └── 0006  kernel/fork.c                  stop the quota timer when fork() fails
+│   ├── 0006  kernel/fork.c                  stop the quota timer when fork() fails
+│   └── 0007  kernel/fork.c                  a child does not inherit the quota (undoes 0006's hook)
 └── config/
     ├── net_quota.config            names the build 7.2.10-netquota
     └── net_quota_debug.config      optional lockdep / atomic-sleep checks
@@ -35,14 +36,14 @@ version.
 
 ## Status
 
-The six patches apply cleanly, in order, on a pristine v7.2.10. The first five
-patches and the code before the timer change were built into a kernel
+The seven patches apply cleanly, in order, on a pristine v7.2.10. The first five
+patches and the code before the two latest changes were built into a kernel
 (`make defconfig` plus the `net_quota.config` fragment), booted as
 `7.2.10-netquota`, and passed every test in `user-code/tests`, with no new
-warnings in the kernel log. The change that starts the timer when the limit is
-set (the current `net_quota.c` and patch 0006) compiles without warnings
-against the full 7.2.10 tree with `W=1`, but has not been booted or run
-through the tests yet. Nothing has been run with the debug options in
+warnings in the kernel log. The two latest changes, the timer starting when the
+limit is set (patch 0006) and a child not inheriting the quota (patch 0007),
+compile without warnings against the full 7.2.10 tree with `W=1`, but have not
+been booted or run through the tests yet. Nothing has been run with the debug options in
 `config/net_quota_debug.config` (lockdep and friends).
 
 ## Following the course steps on 7.2.10
