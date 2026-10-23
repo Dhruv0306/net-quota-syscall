@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * test_timer: the expiry timer on its own.
+ * test_timer: when the window starts, and the timer that ends it.
  *
- * test_basic shows that traffic works again after the period, but a lazy
- * check on the next send would look the same. Here nobody touches the
- * network after the window ends; the parent only asks again with
- * net_quota(): if the quota is really gone, the call succeeds instead of
- * saying "already set".
+ * The window starts the moment the limit is set, whether or not the process
+ * uses the network, and a kernel timer ends it by itself. Two processes:
  *
- *   A: starts using the network (the window starts), then goes idle
- *   P: has a quota but never uses the network (the window never starts)
+ *   A: first uses the network LATE seconds after its limit was set
+ *   P: never uses the network at all
  *
- * Expected after PERIOD seconds: A can be restricted again (timer fired),
- * P still has its quota (nothing ever started its timer).
+ * Both limits must end PERIOD seconds after they were set. The check happens
+ * after PERIOD + 1 seconds, nobody touching the network in between: if the
+ * window had started at A's first use it would still run for LATE more
+ * seconds, and a window that waits for a first use would never end for P.
+ * Asking again with net_quota() tells: success means the quota is gone, "already
+ * set" means it is still there.
  */
 #define _GNU_SOURCE
 #include <errno.h>
@@ -24,7 +25,8 @@
 #include "test_common.h"
 
 #define LIMIT  5000ULL
-#define PERIOD 3U
+#define PERIOD 4U
+#define LATE   2U
 
 static pid_t spawn_pauser(void)
 {
@@ -66,35 +68,42 @@ int main(int argc, char **argv)
 		int fd, err;
 
 		tc_pipe_wait(go[0]);
+		sleep(LATE);			/* first network use, late */
 		fd = tc_connect(&srv);
 		if (fd < 0 || tc_send_until_error(fd, 100, 100, &err) != 100)
 			_exit(1);
-		tc_pipe_signal(ready[1]);	/* window is running now */
+		tc_pipe_signal(ready[1]);
 		for (;;)
-			pause();		/* idle: no more network use */
+			pause();		/* idle again: no more network use */
 	}
 	p = spawn_pauser();
 
 	rc = nq_set_quota(a, LIMIT, PERIOD);
-	CHECK(rc == 0, "limit set on A (%d)", (int)a);
+	CHECK(rc == 0, "limit set on A (%d), which will use the network after %u s", (int)a, LATE);
 	rc = nq_set_quota(p, LIMIT, PERIOD);
 	CHECK(rc == 0, "limit set on P (%d), which will never use the network", (int)p);
 
 	tc_pipe_signal(go[1]);
-	tc_pipe_wait(ready[0]);
 
 	rc = again(a, &e);
-	CHECK(rc == -1 && e == NQ_E_ALREADY_SET, "while the window runs: A is still limited");
-
-	printf("  ..   waiting %u s with no network activity\n", PERIOD + 2);
-	fflush(stdout);
-	sleep(PERIOD + 2);
-
-	rc = again(a, &e);
-	CHECK(rc == 0, "after the period: the timer has revoked A's quota (set again, rc %d)", rc);
+	CHECK(rc == -1 && e == NQ_E_ALREADY_SET, "right after setting: A is limited");
 	rc = again(p, &e);
-	CHECK(rc == -1 && e == NQ_E_ALREADY_SET,
-	      "P's window never started, so its quota is still there");
+	CHECK(rc == -1 && e == NQ_E_ALREADY_SET, "right after setting: P is limited, with no network use at all");
+
+	tc_pipe_wait(ready[0]);		/* about LATE seconds in: A has just used the network */
+	rc = again(a, &e);
+	CHECK(rc == -1 && e == NQ_E_ALREADY_SET, "%u s in, A has used the network and is still limited", LATE);
+
+	printf("  ..   waiting %u s with no network activity\n", PERIOD - LATE + 1);
+	fflush(stdout);
+	sleep(PERIOD - LATE + 1);	/* now PERIOD + 1 s after the limits were set */
+
+	rc = again(a, &e);
+	CHECK(rc == 0, "after %u s: A's quota ended %u s after it was set, not after its first use (set again, rc %d)",
+	      PERIOD + 1, PERIOD, rc);
+	rc = again(p, &e);
+	CHECK(rc == 0, "after %u s: P's quota ended too, although it never used the network (set again, rc %d)",
+	      PERIOD + 1, rc);
 
 	kill(a, SIGKILL);
 	kill(p, SIGKILL);

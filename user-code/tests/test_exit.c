@@ -2,11 +2,12 @@
 /*
  * test_exit: a quota must disappear with its process, in every state.
  *
- * Four restricted processes die in four different ways:
- *   P1  quota set, never used the network (window not started), killed
- *   C1  window running (timer armed), killed
+ * Four restricted processes die in four different ways. The timer of every
+ * quota starts when the limit is set, so each one dies with its timer running:
+ *   P1  never used the network, killed
+ *   C1  used the network, killed
  *   X1  limit reached (EDQUOT), killed
- *   C2  window running, exits normally by itself
+ *   C2  used the network, exits normally by itself
  *
  * If the kernel kept a timer pointing at a freed process, it would fire
  * during the wait below and the kernel log would show a warning or an oops.
@@ -23,7 +24,7 @@
 #include "test_common.h"
 
 #define LIMIT  5000ULL
-#define PERIOD 2U
+#define PERIOD 4U
 #define FRESH  20000ULL
 
 static void gone(pid_t pid, const char *who)
@@ -97,7 +98,7 @@ int main(int argc, char **argv)
 	}
 
 	rc = nq_set_quota(p1, LIMIT, PERIOD);
-	CHECK(rc == 0, "limit set on P1 (%d), which never uses the network", (int)p1);
+	CHECK(rc == 0, "limit set on P1 (%d), which never uses the network (its timer runs anyway)", (int)p1);
 	rc = nq_set_quota(c1, LIMIT, PERIOD);
 	CHECK(rc == 0, "limit set on C1 (%d)", (int)c1);
 	rc = nq_set_quota(x1, LIMIT, PERIOD);
@@ -119,10 +120,10 @@ int main(int argc, char **argv)
 	rc = tc_wait_exit(c2);
 	CHECK(rc == 0, "C2 exited normally");
 
-	gone(p1, "P1 (pending, killed)");
-	gone(c1, "C1 (counting, killed)");
+	gone(p1, "P1 (idle, killed)");
+	gone(c1, "C1 (used the network, killed)");
 	gone(x1, "X1 (exhausted, killed)");
-	gone(c2, "C2 (counting, exited)");
+	gone(c2, "C2 (used the network, exited)");
 
 	printf("  ..   waiting %u s: a leaked timer would fire now\n", PERIOD + 2);
 	fflush(stdout);
