@@ -69,7 +69,7 @@ run() {
 
 run "$BUILD/test_errors"
 run "$BUILD/test_basic" --server "$SERVER_IP" --port "$PORT"
-run "$BUILD/test_inherit" --server "$SERVER_IP" --port "$PORT"
+run "$BUILD/test_fork" --server "$SERVER_IP" --port "$PORT"
 run "$BUILD/test_timer" --server "$SERVER_IP" --port "$PORT"
 run "$BUILD/test_loopback" --server "$SERVER_IP" --port "$PORT" --loop-port "$LOOP_PORT"
 run "$BUILD/test_exit" --server "$SERVER_IP" --port "$PORT"

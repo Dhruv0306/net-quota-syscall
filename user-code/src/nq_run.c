@@ -6,9 +6,9 @@
  *
  * Only descendants can be restricted, so nq_run starts the command itself:
  * it forks, restricts the child, and only then lets the child exec the
- * command. The quota survives exec, and children the command forks inherit
- * their own copy of it. The command does not need to know about quotas: it
- * just sees send/recv fail with "Disk quota exceeded" (EDQUOT) at the limit.
+ * command. The quota survives exec. Children the command forks are not
+ * restricted (see test_fork). The command does not need to know about quotas:
+ * it just sees send/recv fail with "Disk quota exceeded" (EDQUOT) at the limit.
  *
  *     nq_run 50000 20 curl -o /dev/null http://example.org/big-file
  */
