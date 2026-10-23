@@ -36,15 +36,24 @@ version.
 
 ## Status
 
-The seven patches apply cleanly, in order, on a pristine v7.2.10. The first five
-patches and the code before the two latest changes were built into a kernel
-(`make defconfig` plus the `net_quota.config` fragment), booted as
+The seven patches apply cleanly, in order, on a pristine v7.2.10. The code
+before the professor's changes was built into a kernel, booted as
 `7.2.10-netquota`, and passed every test in `user-code/tests`, with no new
-warnings in the kernel log. The two latest changes, the timer starting when the
-limit is set (patch 0006) and a child not inheriting the quota (patch 0007),
-compile without warnings against the full 7.2.10 tree with `W=1`, but have not
-been booted or run through the tests yet. Nothing has been run with the debug options in
+warnings in the kernel log.
+
+Three later changes compile without warnings against the full 7.2.10 tree with
+`W=1` but have **not** been booted or run through the tests yet: the timer
+starting when the limit is set (in `net_quota.c`), a child not inheriting the
+quota (patches 0006 and 0007), and a send larger than what is left being
+refused whole (in `net_quota.c`). The receive side of that last change waits
+for the professor's wording. Nothing has been run with the debug options in
 `config/net_quota_debug.config` (lockdep and friends).
+
+The patches are an append-only history, so apply all seven, in order, before
+building. Patch 0002 alone calls `net_quota_inherit()`, which the current
+`net_quota.c` no longer has, and 0006 only makes sense with 0002; the tree
+builds again once 0007 is on. The current state of `kernel/fork.c` is one
+`#include` and one `net_quota_init()` call.
 
 ## Following the course steps on 7.2.10
 
@@ -100,19 +109,21 @@ is a line to add). The files touched are `Kbuild`,
 ## Part C: recompile (course "Recompilation of Linux Kernel")
 
 ```bash
-make defconfig                  # the reconfiguration option the course uses
-# optional: gives the build its own name, 7.2.10-netquota, so it cannot
-# overwrite a plain 7.2.10 you built earlier
+# Start from the running kernel's .config (docs/setup-and-build.md, step A5,
+# explains the two certificate settings to clear), or, for a fresh start as in
+# the course, run: make defconfig
+# The fragment below gives the build its own name, 7.2.10-netquota, so it
+# cannot overwrite a plain 7.2.10 you built earlier
 scripts/kconfig/merge_config.sh -m .config \
     ~/net-quota-syscall/kernel-code/config/net_quota.config
 make olddefconfig
 
 make -j"$(nproc)"
-make modules_install && make modules_install install
+make modules_install && make install
 ```
 
-`make modules_install install` installs the modules, then the kernel image,
-and runs `update-initramfs` and `update-grub`. Reboot, open the **Advanced
+`make install` installs the kernel image and runs `update-initramfs` and
+`update-grub` (the course's `make modules_install install` does the same). Reboot, open the **Advanced
 options for Ubuntu** entry in GRUB and choose the new kernel. Keep the
 original kernel entry for fallback.
 
@@ -135,4 +146,5 @@ side by side, like the course's `add2Num`.
   receive-side splice. A process with no quota pays one load and one branch.
 - The descendant check walks *up* through `real_parent` from the target until
   it meets the caller. Same answer as walking the children subtree, in O(depth).
-- All decisions and limitations are in `user-code/docs/design.md`.
+- All decisions and limitations are in `user-code/docs/design.md`; open gaps
+  are in `docs/gap/README.md`.

@@ -12,7 +12,7 @@
  *  - the window of period_sec seconds starts the moment the limit is set,
  *    whether or not the process uses the network, and a kernel timer
  *    revokes the quota when it ends; after that the process is unrestricted
- *    for good;
+ *    until an ancestor sets a new quota (nothing is renewed automatically);
  *  - when the limit is reached, send/recv fail with -NQ_E_QUOTA_EXCEEDED
  *    until the window ends; a send larger than what is left is refused
  *    whole with the same error (never partly done, and it costs no quota),

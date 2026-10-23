@@ -12,7 +12,7 @@ Syscall 472 on x86_64. Returns `0` or a negative `NQ_E_*` code:
 |---|---|---|
 | `NQ_E_BAD_ARGS` | EINVAL | pid <= 0, size 0, period 0 or above 7 days, or pid is a thread id |
 | `NQ_E_SELF_TARGET` | EPERM | the caller tried to restrict itself |
-| `NQ_E_NOT_DESCENDANT` | ESRCH | pid is missing or not in the caller's subtree |
+| `NQ_E_NOT_DESCENDANT` | ESRCH | pid is missing, not in the caller's subtree, or the target is exiting |
 | `NQ_E_ALREADY_SET` | EEXIST | the target already has a quota; nothing is changed |
 | `NQ_E_QUOTA_EXCEEDED` | EDQUOT | returned by send/recv when the limit is used up |
 
@@ -31,8 +31,10 @@ No privilege is needed: being an ancestor of the target is the permission.
   splice and io_uring socket operations.
 - **Window:** `period_sec` seconds, started by the syscall itself: the timer
   runs from the moment the limit is set, whether or not the target uses the
-  network. A kernel `timer_list` then revokes the quota; afterwards the
-  process is unrestricted for good. A quota that is never used expires too.
+  network. A kernel `timer_list` then revokes the quota. Nothing is renewed:
+  the process is unrestricted afterwards, until an ancestor sets a new quota,
+  which starts a fresh window and a counter from zero. A quota that is never
+  used expires too.
 - **Limit reached:** every further send/receive fails with EDQUOT until the
   window ends. A send larger than what is left is refused whole with EDQUOT on
   every kind of socket (TCP and UDP alike): nothing is sent and no quota is
@@ -49,6 +51,26 @@ No privilege is needed: being an ancestor of the target is the permission.
   a reused PID starts without a limit.
 - **Messages:** the kernel only returns the error number; the text comes from
   the user-space `nq_strerror()` using the `NQ_MSG_*` defines.
+
+## Decision log
+
+Where each rule came from. The first rows are the original design. The
+professor's changes were applied later, in this order.
+
+| Rule | Origin | Status |
+|---|---|---|
+| Sent and received payload bytes share one counter | original design | in `main` |
+| Only descendants can be restricted, no privilege needed | assignment text | in `main` |
+| A quota that is set is never overwritten (`EEXIST`) | original design | in `main` |
+| Loopback and Unix sockets are not counted | original design | in `main` |
+| The timer starts when the limit is set, not at the first use | professor, change 1 | in `main`; not yet run on the real kernel |
+| A child created by `fork()` does not inherit the quota | professor, change 2 | in `main`; not yet run on the real kernel |
+| A send larger than what is left is refused whole, nothing is charged, error stays `EDQUOT` | professor, change 3 (decided 2026-10-23) | in `main`; not yet run on the real kernel |
+| A receive larger than what is left | professor, change 3, wording pending | **open**: receives are still shortened, see `docs/gap/` |
+
+The full text of change 3, the answers given to the five questions it raised,
+and what is still open are in `docs/gap/professor-change-3-drop-oversized-request.md`.
+The list of open gaps is `docs/gap/README.md`.
 
 ## Implementation notes
 
@@ -86,3 +108,26 @@ No privilege is needed: being an ancestor of the target is the permission.
 6. Tested on one machine only (Ubuntu 24.04, x86_64, kernel 7.2.10 from
    `make defconfig`), and not with the lockdep and atomic-sleep checks of
    `config/net_quota_debug.config`.
+7. **Orphans:** the descendant check is made when the limit is set. If an
+   intermediate process has died, its children have been reparented to init or
+   a subreaper and are no longer descendants of the original caller, so they
+   cannot be restricted. A quota that is already set is not affected.
+8. **Traffic that may not be counted.** By design, only IPv4/IPv6 sockets are
+   counted. Not checked, and possibly not counted, because they may not go
+   through the hooks: `TCP_ZEROCOPY_RECEIVE` through `getsockopt()`, and
+   io_uring zero-copy receive. These need a test before anything is claimed.
+9. **Accounting is by the calling process, not by the socket.** A restricted
+   process can hand a socket to an unrestricted process (a descriptor sent over
+   a Unix socket, or one inherited by a child, which starts unrestricted), and
+   that process's traffic is not counted. This is the same class of escape as
+   limitation 1.
+10. **A send that does not fit is refused, not cut** (change 3). A TCP stream
+    can therefore be left with a few bytes it cannot use, until the timer
+    expires. `EDQUOT` does not tell the caller whether the request was too big
+    or the quota is used up; this is intended.
+11. **Multi-part calls** (`sendfile`, `splice`, `sendmmsg`, io_uring) are
+    charged per internal transfer. The parts that fit succeed and the first
+    one that does not fit fails, so a caller may see a short count and then an
+    error.
+12. A zero-length send with nothing left returns `EDQUOT`, because the
+    nothing-left check runs before the length is looked at.

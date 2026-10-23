@@ -113,12 +113,12 @@ flowchart TD
   C -- yes --> D{"Counted socket?<br/>IPv4 or IPv6 and peer not 127.x"}
   D -- no --> Z
   D -- yes --> F{"Bytes left?"}
-  F -- none --> X["Return -EDQUOT"]
+  F -- none --> X["Return -EDQUOT<br/>nothing sent, nothing charged"]
   F -- some --> G{"Request larger than what is left?"}
   G -- no --> H["Reserve the bytes"]
-  G -- yes --> I{"Stream send or any receive?"}
-  I -- yes --> J["Shorten the request to what is left<br/>then reserve it"]
-  I -- no --> X
+  G -- yes --> I{"Send or receive?"}
+  I -- send --> X
+  I -- receive --> J["Shorten the request to what is left<br/>then reserve it"]
   H --> K["Protocol does the transfer<br/>tcp_sendmsg, udp_recvmsg and so on"]
   J --> K
   K --> L["Give back reserved bytes that were not moved"]
@@ -153,7 +153,7 @@ Receive-side `splice` calls the protocol directly, so it has its own hook in
 stateDiagram-v2
   [*] --> NONE
   NONE --> ACTIVE: net_quota succeeds, timer starts
-  ACTIVE --> NONE: timer fires after the period, revoked for good
+  ACTIVE --> NONE: timer fires after the period, revoked, not renewed
   ACTIVE --> [*]: process exits, timer stopped
   note right of ACTIVE
     When used reaches limit, every
@@ -165,7 +165,7 @@ stateDiagram-v2
 | Event | Where in the kernel | What happens |
 |---|---|---|
 | `net_quota()` succeeds | `net_quota_install()` | NONE becomes ACTIVE; limit and period stored; `mod_timer()` starts the period |
-| Period ends | `nq_timer_fn()` in softirq | quota cleared back to NONE; nothing is renewed |
+| Period ends | `nq_timer_fn()` in softirq | quota cleared back to NONE and `used` forgotten; nothing is renewed. An ancestor may set a new quota afterwards, which starts a fresh window and a fresh counter |
 | `fork()` of a restricted process | `copy_signal()` in `kernel/fork.c` | the child starts with an empty quota (state NONE): no limit, no timer. Nothing is passed on from the parent |
 | Last thread exits | `do_exit()` in `kernel/exit.c` | timer stopped, quota cleared; a reused PID starts clean |
 | Second `net_quota()` call | `net_quota_install()` | refused with `-EEXIST`; nothing is changed |
@@ -272,13 +272,25 @@ and the timer lifts the limit by itself (steps 7 and 8).
 | Quota struct and lifecycle functions | `kernel-code/new-files/include/linux/net_quota.h` |
 | Inline fast path for send, receive, splice | `kernel-code/new-files/include/net/net_quota.h` |
 | Quota field in the process | `kernel-code/patches/0001-*` (`include/linux/sched/signal.h`) |
-| Set up at fork, nothing inherited | `kernel-code/patches/0002-*` and `0007-*` (`kernel/fork.c`) |
+| Set up at fork, nothing inherited | `kernel-code/patches/0002-*` and `0007-*` (`kernel/fork.c`); only `net_quota_init()` is left in `copy_signal()` |
 | Clear at exit | `kernel-code/patches/0003-*` (`kernel/exit.c`) |
 | Hooks on send and receive | `kernel-code/patches/0004-*` (`net/socket.c`) |
 | Build and register as syscall 472 | `kernel-code/patches/0005-*` (`Kbuild`, `syscall_64.tbl`, `syscalls.h`) |
+| Fork-failure cleanup, later made unnecessary | `kernel-code/patches/0006-*` (`kernel/fork.c`), undone by 0007 |
 | Wrapper and messages | `user-code/src/net_quota.c`, `user-code/include/net_quota_msgs.h` |
 | Command-line tools | `user-code/src/nq_cli.c`, `nq_run.c`, `nq_demo.c` |
 | Tests | `user-code/tests/` |
+
+## 10. Related pages
+
+| Page | What it covers |
+|---|---|
+| [handoff.md](handoff.md) | what exists, what is proven, what to do next |
+| [setup-and-build.md](setup-and-build.md) | building and booting the kernel, and updating an existing build |
+| [../user-code/docs/design.md](../user-code/docs/design.md) | behaviour rules, decision log, known limitations |
+| [gap/README.md](gap/README.md) | open gaps and the pending professor change |
+| [removing-net-quota.md](removing-net-quota.md) | taking the system call out of the kernel source |
+| [removing-custom-kernel.md](removing-custom-kernel.md) | removing the installed custom kernel from the machine |
 
 ## An auto-generated diagram for comparison
 

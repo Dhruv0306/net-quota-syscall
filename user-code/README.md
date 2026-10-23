@@ -22,7 +22,7 @@ user-code/
 │   ├── test_realprog.sh    dd started with nq_run is stopped by the quota
 │   ├── test_exit.c         quotas vanish with their process in every state
 │   ├── test_udp.c          datagrams are refused whole, receives are cut
-│   ├── test_threads.c      four threads share one quota exactly
+│   ├── test_threads.c      four threads share one quota: 28 whole 700-byte blocks, no byte lost
 │   ├── test_common.[ch]    shared helpers
 │   ├── net_server.c        TCP echo server, or UDP with the argument "udp"
 │   ├── setup_netns.sh      optional veth + namespace (needs CONFIG_VETH)
@@ -30,6 +30,12 @@ user-code/
 ├── docs/design.md
 └── Makefile
 ```
+
+The three `*.logs` files in this directory (`full_test.logs`, `smoke_test.logs`,
+`demo_test.logs`) are old captures from before the current rules. In particular
+`full_test.logs` contains a `test_inherit` run, a test that no longer exists
+and asserted the opposite of today's `fork()` behaviour. They are not a record
+of the current code; replace them with a new run.
 
 ## Build and run
 

@@ -39,7 +39,8 @@ enum net_quota_state {
  *		moment the limit is set
  *
  * A quota that is "exhausted" is simply state ACTIVE with used >= limit.
- * When the timer fires the quota is cleared back to NQ_STATE_NONE for good.
+ * When the timer fires the quota is cleared back to NQ_STATE_NONE; nothing is
+ * renewed, and an ancestor may set a new quota afterwards.
  */
 struct net_quota_info {
 	spinlock_t		lock;

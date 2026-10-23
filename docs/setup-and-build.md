@@ -280,12 +280,13 @@ cd $NQ/user-code
 make
 ./build/nq_cli 1 1000 5                   # "Process 1 is not a descendant ..." = the syscall answers
 ./build/nq_demo                           # direct call returns 0, wrapper call says already set
-sudo ./tests/run_tests.sh                 # ends with: ALL TESTS PASSED
+sudo ./tests/run_tests.sh                 # about a minute; ends with: ALL TESTS PASSED
 sudo dmesg | grep -E 'BUG:|WARNING:|Oops|lockdep|net_quota'    # prints nothing
 ```
 
 The test runner also compares the kernel log before and after, and prints
-`kernel log: no new warnings or oopses`.
+`kernel log: no new warnings or oopses`. Record the result of every run on a
+changed kernel in `docs/handoff.md`, section 4.
 
 ---
 
@@ -303,18 +304,55 @@ A change to `signal.h` rebuilds almost everything; a change to
 `kernel-code/new-files/`, and regenerate the patches for changed existing files
 with `git format-patch`, so the repo stays the source of truth.
 
+## Update an existing build to the current `main`
+
+If `$KSRC` already has an older version of net_quota, do not start over. Find
+out which patches are in the tree, then copy the new files and apply only the
+missing patches.
+
+```bash
+cd $KSRC
+grep -c net_quota include/linux/sched/signal.h        # 0001: expect 2 or more
+grep -n  net_quota kernel/fork.c                      # 0002/0006/0007, see below
+grep -c net_quota kernel/exit.c                       # 0003: expect 2 or more
+grep -c net_quota net/socket.c                        # 0004: expect 1 or more
+grep -c net_quota Kbuild                              # 0005: expect 1
+```
+
+`kernel/fork.c` tells which of 0002, 0006 and 0007 are on:
+
+| `grep -n net_quota kernel/fork.c` shows | State |
+|---|---|
+| nothing | none of the three |
+| the `#include`, `net_quota_init`, `net_quota_inherit` | 0002 only: apply 0006, then 0007 |
+| the above plus `net_quota_exit` | 0002 and 0006: apply 0007 |
+| the `#include` and `net_quota_init` only | all three: nothing to apply |
+
+Then:
+
+```bash
+cd $KSRC
+cp -r $NQ/kernel-code/new-files/. .                   # always: the logic is in these files
+patch -p1 --dry-run < $NQ/kernel-code/patches/<missing patch>   # then without --dry-run
+make -j"$(nproc)" && make modules_install && make install && update-grub && reboot
+```
+
+Apply the missing patches in numeric order and build only after the last one:
+with 0002 on and 0007 off, the new `net_quota.c` has no `net_quota_inherit()`
+and the build stops. These changes touch `net_quota.c` and `fork.c`, so only a
+few files rebuild.
+
 ## Go back to another kernel
 
 Restart, choose **Advanced options for Ubuntu** and pick the kernel you want:
-the original one, or the plain 7.2.10 from Part A. To remove the net_quota
-kernel completely (the plain 7.2.10 and the original stay):
+the original one, or the plain 7.2.10 from Part A. That is all that is needed
+to stop using net_quota.
 
-```bash
-rm -f /boot/vmlinuz-7.2.10-netquota /boot/initrd.img-7.2.10-netquota \
-      /boot/System.map-7.2.10-netquota /boot/config-7.2.10-netquota
-rm -rf /lib/modules/7.2.10-netquota
-update-grub
-```
+To delete the installed net_quota kernel and its GRUB entry, follow
+[removing-custom-kernel.md](removing-custom-kernel.md): it lists what to check
+first and what to do if the machine does not boot afterwards. To take the
+system call out of the kernel *source* and build a kernel without it, follow
+[removing-net-quota.md](removing-net-quota.md).
 
 ## When something goes wrong
 
