@@ -155,6 +155,9 @@ rm -rf /lib/modules/7.2.10-netquota
 update-grub
 ```
 
+A fuller version of this part, with the checks and the fallbacks, is in
+`removing-custom-kernel.md`.
+
 Then check that the GRUB menu no longer lists `7.2.10-netquota`. If step 5 was
 skipped and the rebuilt kernel has the same name, do not run Part C for that
 name, or you will delete the kernel you just built.
