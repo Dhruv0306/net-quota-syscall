@@ -144,7 +144,7 @@ head -5 $KSRC/Makefile                # VERSION = 7, PATCHLEVEL = 2, SUBLEVEL = 
 
 ### B2. Copy the new files and apply the patches
 
-`new-files/` holds the six new files, and the five patches make every change
+`new-files/` holds the six new files, and the six patches make every change
 to existing kernel files.
 
 ```bash

@@ -43,7 +43,7 @@ flowchart TB
   TARGET -->|"send or recv"| HOOK
   HOOK <-->|"check and charge"| STATE
   HOOK --> NET
-  STATE -->|"first use starts it"| TIMER
+  STATE -->|"setting the limit starts it"| TIMER
   TIMER -->|"period over: clear"| STATE
 ```
 
@@ -75,7 +75,7 @@ sequenceDiagram
     Q-->>K: refused
     K-->>W: -EEXIST
   else no quota yet
-    Q-->>K: state NONE becomes PENDING
+    Q-->>K: state NONE becomes ACTIVE, timer starts
     K-->>W: 0
   end
   W-->>P: 0, or -1 with errno set
@@ -90,12 +90,14 @@ What goes in and what comes out at each step:
 | 2 | Wrapper `nq_set_quota()` in `user-code/src/net_quota.c` | the three numbers | `syscall(472, ...)` through libc | 0, or -1 and `errno` |
 | 3 | Kernel entry | system call number 472 and three register values | the CPU switches to kernel mode; the number selects `sys_net_quota` in `syscall_64.tbl` | calls `SYSCALL_DEFINE3(net_quota, ...)` |
 | 4 | Checks in `net_quota/net_quota.c` | pid, size, period | rejects bad values, a thread id, the caller itself, a non-descendant | `-EINVAL`, `-EPERM`, `-ESRCH` on failure |
-| 5 | `net_quota_install()` | limit and period | under a lock: if the state is NONE, store the limit and set state PENDING | 0, or `-EEXIST` |
+| 5 | `net_quota_install()` | limit and period | under a lock: if the state is NONE, store the limit, set state ACTIVE and start the timer for the full period | 0, or `-EEXIST` |
 | 6 | Back in user space | the kernel's negative number | libc turns `-N` into return value -1 and `errno = N` | the wrapper returns it |
 | 7 | `nq_strerror()` | `errno`, pid, bytes | picks the matching `NQ_MSG_*` text | a readable message on stderr |
 
-The call changes nothing except the state of the target. The timer is not
-started here: the window begins at the target's first network use.
+The call changes nothing except the state of the target. The timer starts
+here, in the same moment the limit is set: the window does not wait for the
+target's first network use, and it ends `seconds` later whether or not the
+target has used the network by then.
 
 ## 3. Flow two: a transfer under a quota
 
@@ -110,8 +112,7 @@ flowchart TD
   C -- no --> Z["Run the transfer as usual"]
   C -- yes --> D{"Counted socket?<br/>IPv4 or IPv6 and peer not 127.x"}
   D -- no --> Z
-  D -- yes --> E["First use: start the window<br/>PENDING becomes COUNTING, arm the timer"]
-  E --> F{"Bytes left?"}
+  D -- yes --> F{"Bytes left?"}
   F -- none --> X["Return -EDQUOT"]
   F -- some --> G{"Request larger than what is left?"}
   G -- no --> H["Reserve the bytes"]
@@ -150,13 +151,11 @@ Receive-side `splice` calls the protocol directly, so it has its own hook in
 ```mermaid
 stateDiagram-v2
   [*] --> NONE
-  NONE --> PENDING: net_quota succeeds
-  NONE --> PENDING: fork of a restricted process, child inherits
-  PENDING --> COUNTING: first counted send or receive, timer armed
-  COUNTING --> NONE: timer fires after the period, revoked for good
-  PENDING --> [*]: process exits
-  COUNTING --> [*]: process exits, timer stopped
-  note right of COUNTING
+  NONE --> ACTIVE: net_quota succeeds, timer starts
+  NONE --> ACTIVE: fork of a restricted process, child inherits, its timer starts
+  ACTIVE --> NONE: timer fires after the period, revoked for good
+  ACTIVE --> [*]: process exits, timer stopped
+  note right of ACTIVE
     When used reaches limit, every
     send and receive returns -EDQUOT
     until the timer fires.
@@ -165,10 +164,9 @@ stateDiagram-v2
 
 | Event | Where in the kernel | What happens |
 |---|---|---|
-| `net_quota()` succeeds | `net_quota_install()` | NONE becomes PENDING; limit and period stored |
-| First counted transfer | `__net_quota_begin()` | PENDING becomes COUNTING; `mod_timer()` starts the period |
+| `net_quota()` succeeds | `net_quota_install()` | NONE becomes ACTIVE; limit and period stored; `mod_timer()` starts the period |
 | Period ends | `nq_timer_fn()` in softirq | quota cleared back to NONE; nothing is renewed |
-| `fork()` of a restricted process | `copy_signal()` in `kernel/fork.c` | child gets the same limit and period, a fresh counter, state PENDING |
+| `fork()` of a restricted process | `copy_signal()` in `kernel/fork.c` | child gets the same limit and period and a fresh counter, and its own timer starts at the fork for the full period |
 | Last thread exits | `do_exit()` in `kernel/exit.c` | timer stopped, quota cleared; a reused PID starts clean |
 | Second `net_quota()` call | `net_quota_install()` | refused with `-EEXIST`; nothing is changed |
 
@@ -188,7 +186,8 @@ flowchart LR
 
 | Field | Meaning |
 |---|---|
-| `state` | NONE, PENDING or COUNTING; read without the lock on the fast path |
+| `state` | NONE or ACTIVE; read without the lock on the fast path |
+| `dead` | set when the process exits, so a late `net_quota()` call cannot start a timer that nobody would stop |
 | `limit` | payload bytes allowed, sent plus received |
 | `used` | bytes charged so far, including transfers still in flight |
 | `period_sec` | length of the window in seconds |
@@ -253,9 +252,9 @@ the timer lifts the limit by itself (steps 6 and 7).
 | Where | What happens |
 |---|---|
 | `nq_run` (user space) | forks a child that waits, calls `nq_set_quota(child, 20000, 20)`, prints "limit of 20000 bytes set", then lets the child `exec` bash |
-| Kernel | the quota is stored with state PENDING; it survives `exec` because it belongs to the process |
+| Kernel | the quota is stored with state ACTIVE and the 20-second timer starts; it survives `exec` because it belongs to the process |
 | `dd` (user space) | writes 1000-byte blocks to the socket |
-| Kernel, first write | window starts, timer armed, 1000 bytes reserved and sent |
+| Kernel, first write | 1000 bytes reserved and sent (the 20 seconds have been running since the limit was set) |
 | Kernel, writes 2 to 20 | each is charged; `used` reaches 20000 |
 | Kernel, write 21 | nothing left: returns `-EDQUOT` |
 | `dd` (user space) | prints "Disk quota exceeded" and "20000 bytes copied", then exits with an error |
@@ -273,6 +272,7 @@ the timer lifts the limit by itself (steps 6 and 7).
 | Clear at exit | `kernel-code/patches/0003-*` (`kernel/exit.c`) |
 | Hooks on send and receive | `kernel-code/patches/0004-*` (`net/socket.c`) |
 | Build and register as syscall 472 | `kernel-code/patches/0005-*` (`Kbuild`, `syscall_64.tbl`, `syscalls.h`) |
+| Stop the timer if `fork()` fails | `kernel-code/patches/0006-*` (`kernel/fork.c`) |
 | Wrapper and messages | `user-code/src/net_quota.c`, `user-code/include/net_quota_msgs.h` |
 | Command-line tools | `user-code/src/nq_cli.c`, `nq_run.c`, `nq_demo.c` |
 | Tests | `user-code/tests/` |

@@ -2,9 +2,8 @@
 
 A custom Linux system call, `net_quota(pid, data_size, period_sec)`, that lets a
 process limit the network data of one of its descendants. The limit counts
-payload bytes sent and received on one combined counter, the window starts at
-the target's first use of the network, and a kernel timer revokes it when the
-period ends. When the limit is reached, send/receive fail with `EDQUOT` until
+payload bytes sent and received on one combined counter, the window starts the
+moment the limit is set, and a kernel timer revokes it when the period ends. When the limit is reached, send/receive fail with `EDQUOT` until
 then.
 
 Target platform: Ubuntu 24.04 on x86_64, Linux kernel 7.2.10 (custom build).
@@ -37,9 +36,11 @@ sudo ./tests/run_tests.sh
 ## Status
 
 The patches apply cleanly on v7.2.10, and the kernel builds and boots as
-`7.2.10-netquota`. The full test run passes (errors, limit and partial
+`7.2.10-netquota`. The full test run passed (errors, limit and partial
 transfer, inheritance, timer, loopback exclusion, exit cleanup, UDP, threads,
 and a real program started with `nq_run`) with no new kernel log warnings.
+The latest change, the timer starting when the limit is set, compiles cleanly
+but has not been booted and tested yet.
 
 ## Branches
 

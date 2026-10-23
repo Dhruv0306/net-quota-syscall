@@ -29,9 +29,10 @@ No privilege is needed: being an ancestor of the target is the permission.
   `sock_recvmsg_nosec()` and `sock_splice_read()`, which covers send, sendto,
   sendmsg, sendmmsg, write, recv, recvfrom, recvmsg, recvmmsg, read, sendfile,
   splice and io_uring socket operations.
-- **Window:** `period_sec` seconds, started by the target's first counted
-  send/receive, not by the syscall. A kernel `timer_list` then revokes the
-  quota; afterwards the process is unrestricted for good.
+- **Window:** `period_sec` seconds, started by the syscall itself: the timer
+  runs from the moment the limit is set, whether or not the target uses the
+  network. A kernel `timer_list` then revokes the quota; afterwards the
+  process is unrestricted for good. A quota that is never used expires too.
 - **Limit reached:** every further send/receive fails with EDQUOT until the
   window ends. A transfer that only partly fits is shortened to what is left
   (partial transfer) for receives and for stream sends. A UDP-style send that
@@ -41,10 +42,12 @@ No privilege is needed: being an ancestor of the target is the permission.
   changes nothing, including the counter and the timer. An expired quota is
   gone, so a new one can be set.
 - **fork():** a child process inherits its own quota: same limit and period,
-  fresh counter, its own window from its first use. A parent whose quota has
-  expired passes nothing on. Threads share the parent's quota.
+  fresh counter, and its own window, which starts at the fork and runs for
+  the full period. A parent whose quota has expired passes nothing on.
+  Threads share the parent's quota.
 - **Exit:** the quota and its timer are removed when the last thread exits, so
-  a reused PID starts without a limit.
+  a reused PID starts without a limit. The same happens if a `fork()` fails
+  after the child inherited a quota.
 - **Messages:** the kernel only returns the error number; the text comes from
   the user-space `nq_strerror()` using the `NQ_MSG_*` defines.
 
@@ -57,6 +60,12 @@ No privilege is needed: being an ancestor of the target is the permission.
   counter stops a refund from touching a quota that was revoked or replaced
   while the transfer slept.
 - A process without a quota pays one load and a branch per send/receive.
+- The timer is armed when the limit is set, so something must stop it before
+  the process's `signal_struct` is freed. `do_exit()` does it when the last
+  thread exits, and `copy_process()` does it when `fork()` fails after the
+  child inherited a quota (patch 0006). The exit path also sets a `dead` flag
+  under the quota lock, so a `net_quota()` call that races with the exit
+  cannot arm a timer that nobody would stop; it gets `-ESRCH` instead.
 - The descendant check walks up through `real_parent` instead of down the
   children lists. Same answer, O(depth), no allocation, handles threads.
 
@@ -71,11 +80,9 @@ No privilege is needed: being an ancestor of the target is the permission.
 3. A receive on an unconnected socket from a loopback sender is charged
    up-front and refunded afterwards; it can be refused if the quota is
    already used up.
-4. A window starts at the first counted transfer even if that transfer then
-   fails.
-5. x86_64 only (no 32-bit or compat entry), requires `CONFIG_NET`, maximum
+4. x86_64 only (no 32-bit or compat entry), requires `CONFIG_NET`, maximum
    period 7 days.
-6. Zero-copy and multishot variants of io_uring have not been checked.
-7. Tested on one machine only (Ubuntu 24.04, x86_64, kernel 7.2.10 from
+5. Zero-copy and multishot variants of io_uring have not been checked.
+6. Tested on one machine only (Ubuntu 24.04, x86_64, kernel 7.2.10 from
    `make defconfig`), and not with the lockdep and atomic-sleep checks of
    `config/net_quota_debug.config`.
