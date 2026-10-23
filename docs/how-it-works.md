@@ -152,7 +152,6 @@ Receive-side `splice` calls the protocol directly, so it has its own hook in
 stateDiagram-v2
   [*] --> NONE
   NONE --> ACTIVE: net_quota succeeds, timer starts
-  NONE --> ACTIVE: fork of a restricted process, child inherits, its timer starts
   ACTIVE --> NONE: timer fires after the period, revoked for good
   ACTIVE --> [*]: process exits, timer stopped
   note right of ACTIVE
@@ -166,13 +165,15 @@ stateDiagram-v2
 |---|---|---|
 | `net_quota()` succeeds | `net_quota_install()` | NONE becomes ACTIVE; limit and period stored; `mod_timer()` starts the period |
 | Period ends | `nq_timer_fn()` in softirq | quota cleared back to NONE; nothing is renewed |
-| `fork()` of a restricted process | `copy_signal()` in `kernel/fork.c` | child gets the same limit and period and a fresh counter, and its own timer starts at the fork for the full period |
+| `fork()` of a restricted process | `copy_signal()` in `kernel/fork.c` | the child starts with an empty quota (state NONE): no limit, no timer. Nothing is passed on from the parent |
 | Last thread exits | `do_exit()` in `kernel/exit.c` | timer stopped, quota cleared; a reused PID starts clean |
 | Second `net_quota()` call | `net_quota_install()` | refused with `-EEXIST`; nothing is changed |
 
 Threads and `fork()` differ on purpose. Threads of one process share the
-quota. A new child process gets its own copy, so a restricted process that
-forks can move more than the limit in total (listed in the known limitations).
+quota. A new child process starts without any quota, so a restricted process
+that forks can do its network traffic through the child without a limit (listed
+in the known limitations). An ancestor that knows the child's pid can still set
+a quota on it with a call of its own.
 
 ## 5. Where the quota lives
 
@@ -268,11 +269,10 @@ the timer lifts the limit by itself (steps 6 and 7).
 | Quota struct and lifecycle functions | `kernel-code/new-files/include/linux/net_quota.h` |
 | Inline fast path for send, receive, splice | `kernel-code/new-files/include/net/net_quota.h` |
 | Quota field in the process | `kernel-code/patches/0001-*` (`include/linux/sched/signal.h`) |
-| Inherit at fork | `kernel-code/patches/0002-*` (`kernel/fork.c`) |
+| Set up at fork, nothing inherited | `kernel-code/patches/0002-*` and `0007-*` (`kernel/fork.c`) |
 | Clear at exit | `kernel-code/patches/0003-*` (`kernel/exit.c`) |
 | Hooks on send and receive | `kernel-code/patches/0004-*` (`net/socket.c`) |
 | Build and register as syscall 472 | `kernel-code/patches/0005-*` (`Kbuild`, `syscall_64.tbl`, `syscalls.h`) |
-| Stop the timer if `fork()` fails | `kernel-code/patches/0006-*` (`kernel/fork.c`) |
 | Wrapper and messages | `user-code/src/net_quota.c`, `user-code/include/net_quota_msgs.h` |
 | Command-line tools | `user-code/src/nq_cli.c`, `nq_run.c`, `nq_demo.c` |
 | Tests | `user-code/tests/` |

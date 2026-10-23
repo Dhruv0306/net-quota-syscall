@@ -41,13 +41,11 @@ No privilege is needed: being an ancestor of the target is the permission.
 - **Existing quota:** never overwritten. The call fails with EEXIST and
   changes nothing, including the counter and the timer. An expired quota is
   gone, so a new one can be set.
-- **fork():** a child process inherits its own quota: same limit and period,
-  fresh counter, and its own window, which starts at the fork and runs for
-  the full period. A parent whose quota has expired passes nothing on.
-  Threads share the parent's quota.
+- **fork():** a child process does not inherit the quota. It starts with no
+  limit and no timer, whatever its parent has. Threads share the parent's
+  quota.
 - **Exit:** the quota and its timer are removed when the last thread exits, so
-  a reused PID starts without a limit. The same happens if a `fork()` fails
-  after the child inherited a quota.
+  a reused PID starts without a limit.
 - **Messages:** the kernel only returns the error number; the text comes from
   the user-space `nq_strerror()` using the `NQ_MSG_*` defines.
 
@@ -62,18 +60,19 @@ No privilege is needed: being an ancestor of the target is the permission.
 - A process without a quota pays one load and a branch per send/receive.
 - The timer is armed when the limit is set, so something must stop it before
   the process's `signal_struct` is freed. `do_exit()` does it when the last
-  thread exits, and `copy_process()` does it when `fork()` fails after the
-  child inherited a quota (patch 0006). The exit path also sets a `dead` flag
-  under the quota lock, so a `net_quota()` call that races with the exit
-  cannot arm a timer that nobody would stop; it gets `-ESRCH` instead.
+  thread exits. The exit path also sets a `dead` flag under the quota lock, so
+  a `net_quota()` call that races with the exit cannot arm a timer that nobody
+  would stop; it gets `-ESRCH` instead.
 - The descendant check walks up through `real_parent` instead of down the
   children lists. Same answer, O(depth), no allocation, handles threads.
 
 ## Known limitations
 
-1. **Inheritance multiplies the limit.** Every fork gets a full copy, so a
-   restricted process can spread traffic over children and move more than
-   `limit` bytes in total.
+1. **A restricted process can escape its limit by forking.** The child starts
+   with no quota, so a program that forks and does its network traffic in the
+   child, or in several children, is not limited at all. Only an ancestor that
+   knows the child's pid can restrict it, with a call of its own. This follows
+   from the rule that children start unrestricted.
 2. **Loopback is decided by the destination address**, not the interface.
    Traffic to the machine's own non-loopback address is counted, which is
    what the tests rely on.
