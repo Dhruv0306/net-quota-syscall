@@ -9,16 +9,18 @@
  *  - only a descendant (child, grandchild, ...) of the caller can be
  *    targeted, never the caller itself, and only a process, not one thread;
  *  - a quota that is already set is never overwritten (-NQ_E_ALREADY_SET);
- *  - the window of period_sec seconds starts at the process's first use of
- *    the network, and a kernel timer revokes the quota when it ends; after
- *    that the process is unrestricted for good;
+ *  - the window of period_sec seconds starts the moment the limit is set,
+ *    whether or not the process uses the network, and a kernel timer
+ *    revokes the quota when it ends; after that the process is unrestricted
+ *    for good;
  *  - when the limit is reached, send/recv fail with -NQ_E_QUOTA_EXCEEDED
  *    until the window ends; a transfer that only partly fits is shortened
  *    (partial transfer) where that is safe, see __net_quota_begin();
  *  - only AF_INET/AF_INET6 sockets whose peer is not a loopback address
  *    are counted;
  *  - a child created by fork() of a restricted process inherits its own
- *    copy of the quota (same limit and period, fresh counter);
+ *    copy of the quota (same limit and period, fresh counter, and its own
+ *    window, which starts at the fork);
  *  - the quota disappears when the process exits.
  *
  * The state lives in struct signal_struct (shared by all threads of the
@@ -74,6 +76,7 @@ void net_quota_init(struct net_quota_info *nq)
 {
 	spin_lock_init(&nq->lock);
 	nq->state = NQ_STATE_NONE;
+	nq->dead = false;
 	nq->gen = 0;
 	nq->period_sec = 0;
 	nq->limit = 0;
@@ -83,37 +86,61 @@ void net_quota_init(struct net_quota_info *nq)
 
 /*
  * Called from copy_signal() after net_quota_init(): a child of a restricted
- * process gets its own quota with the same limit and period, a fresh counter
- * and its own window, which starts at the child's first use of the network.
- * A parent whose quota was already revoked passes on nothing.
+ * process gets its own quota with the same limit and period and a fresh
+ * counter. The limit is set at the fork, so the child's window starts now and
+ * runs for the full period. A parent whose quota was already revoked passes on
+ * nothing.
+ *
+ * The child's timer is armed here, so whoever fails the fork later must call
+ * net_quota_exit() before freeing the child's signal_struct.
  */
 void net_quota_inherit(struct net_quota_info *child,
 		       struct net_quota_info *parent)
 {
-	spin_lock_bh(&parent->lock);
-	if (parent->state != NQ_STATE_NONE) {
-		/* The child is not visible to anyone yet: no lock needed. */
-		child->limit = parent->limit;
-		child->period_sec = parent->period_sec;
-		child->used = 0;
-		child->state = NQ_STATE_PENDING;
-	}
-	spin_unlock_bh(&parent->lock);
-}
+	u64 limit = 0;
+	unsigned int period_sec = 0;
 
-/* Called from do_exit() when the last thread of the process is exiting. */
-void net_quota_exit(struct net_quota_info *nq)
-{
-	if (READ_ONCE(nq->state) == NQ_STATE_NONE)
+	/*
+	 * Most parents have no quota: look without the lock. This also keeps us
+	 * from locking the quota of init_task's static init_signals, which
+	 * net_quota_init() never initialised.
+	 */
+	if (likely(READ_ONCE(parent->state) == NQ_STATE_NONE))
 		return;
 
-	/* No thread is left to re-arm the timer; stop it, then clear. */
-	timer_shutdown_sync(&nq->timer);
-	spin_lock_bh(&nq->lock);
-	nq_clear_locked(nq);
-	spin_unlock_bh(&nq->lock);
+	spin_lock_bh(&parent->lock);
+	if (parent->state != NQ_STATE_NONE) {
+		limit = parent->limit;
+		period_sec = parent->period_sec;
+	}
+	spin_unlock_bh(&parent->lock);
+
+	if (period_sec)
+		net_quota_install(child, limit, period_sec);
 }
 
+/*
+ * Called from do_exit() when the last thread of the process is exiting, and
+ * when fork() fails after copy_signal(). Always marks the process dead, even
+ * if it has no quota: a quota installed after this point would arm a timer
+ * that nobody stops before the signal_struct is freed.
+ */
+void net_quota_exit(struct net_quota_info *nq)
+{
+	spin_lock_bh(&nq->lock);
+	nq->dead = true;
+	nq_clear_locked(nq);
+	spin_unlock_bh(&nq->lock);
+
+	/* Not under the lock: waits for a running timer callback, which takes it. */
+	timer_shutdown_sync(&nq->timer);
+}
+
+/*
+ * Set the limit and start the window in the same moment: the timer is armed
+ * here, not at the first transfer. Returns 0, -NQ_E_ALREADY_SET if a quota is
+ * active, or -NQ_E_NOT_DESCENDANT if the process is already exiting.
+ */
 int net_quota_install(struct net_quota_info *nq, u64 limit,
 		      unsigned int period_sec)
 {
@@ -123,14 +150,17 @@ int net_quota_install(struct net_quota_info *nq, u64 limit,
 	BUILD_BUG_ON((u64)NQ_MAX_PERIOD_SEC * HZ > UINT_MAX);
 
 	spin_lock_bh(&nq->lock);
-	if (nq->state != NQ_STATE_NONE) {
+	if (nq->dead) {
+		ret = -NQ_E_NOT_DESCENDANT;
+	} else if (nq->state != NQ_STATE_NONE) {
 		ret = -NQ_E_ALREADY_SET;
 	} else {
 		nq->limit = limit;
 		nq->period_sec = period_sec;
 		nq->used = 0;
 		nq->gen++;
-		WRITE_ONCE(nq->state, NQ_STATE_PENDING);
+		WRITE_ONCE(nq->state, NQ_STATE_ACTIVE);
+		mod_timer(&nq->timer, jiffies + secs_to_jiffies(period_sec));
 	}
 	spin_unlock_bh(&nq->lock);
 	return ret;
@@ -219,8 +249,8 @@ static bool nq_socket_counts(struct socket *sock, const struct sockaddr *peer,
  * @t:		ticket for net_quota_end()
  *
  * Returns 0 to go ahead (t->active tells whether the transfer is charged),
- * or -NQ_E_QUOTA_EXCEEDED if no quota is left. The window starts here, at
- * the first counted transfer.
+ * or -NQ_E_QUOTA_EXCEEDED if no quota is left. The window is already
+ * running: it started when the limit was set.
  *
  * A request larger than the remaining quota is shortened to it (partial
  * transfer) for receives and for sends on stream sockets. A send on a
@@ -244,10 +274,6 @@ int __net_quota_begin(struct socket *sock, const struct sockaddr *peer,
 	if (nq->state == NQ_STATE_NONE) {	/* revoked in the meantime */
 		spin_unlock_bh(&nq->lock);
 		return 0;
-	}
-	if (nq->state == NQ_STATE_PENDING) {	/* first use: start the window */
-		WRITE_ONCE(nq->state, NQ_STATE_COUNTING);
-		mod_timer(&nq->timer, jiffies + secs_to_jiffies(nq->period_sec));
 	}
 
 	remaining = nq->limit - min(nq->limit, nq->used);

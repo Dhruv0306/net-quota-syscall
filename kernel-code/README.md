@@ -21,7 +21,8 @@ kernel-code/
 │   ├── 0002  kernel/fork.c                  init and inherit in copy_signal()
 │   ├── 0003  kernel/exit.c                  clear the quota in do_exit()
 │   ├── 0004  net/socket.c                   count sends and receives
-│   └── 0005  Kbuild, syscall_64.tbl, asm-generic/syscalls.h, linux/syscalls.h
+│   ├── 0005  Kbuild, syscall_64.tbl, asm-generic/syscalls.h, linux/syscalls.h
+│   └── 0006  kernel/fork.c                  stop the quota timer when fork() fails
 └── config/
     ├── net_quota.config            names the build 7.2.10-netquota
     └── net_quota_debug.config      optional lockdep / atomic-sleep checks
@@ -34,11 +35,15 @@ version.
 
 ## Status
 
-The five patches apply cleanly, in order, on a pristine v7.2.10. The kernel has
-been built from them (`make defconfig` plus the `net_quota.config` fragment),
-booted as `7.2.10-netquota`, and passes every test in `user-code/tests`, with
-no new warnings in the kernel log. It has not been run with the debug options
-in `config/net_quota_debug.config` (lockdep and friends).
+The six patches apply cleanly, in order, on a pristine v7.2.10. The first five
+patches and the code before the timer change were built into a kernel
+(`make defconfig` plus the `net_quota.config` fragment), booted as
+`7.2.10-netquota`, and passed every test in `user-code/tests`, with no new
+warnings in the kernel log. The change that starts the timer when the limit is
+set (the current `net_quota.c` and patch 0006) compiles without warnings
+against the full 7.2.10 tree with `W=1`, but has not been booted or run
+through the tests yet. Nothing has been run with the debug options in
+`config/net_quota_debug.config` (lockdep and friends).
 
 ## Following the course steps on 7.2.10
 

@@ -18,8 +18,7 @@
 
 enum net_quota_state {
 	NQ_STATE_NONE = 0,	/* no quota; also the zeroed default */
-	NQ_STATE_PENDING,	/* limit stored, timer not started yet */
-	NQ_STATE_COUNTING,	/* timer running, bytes are being charged */
+	NQ_STATE_ACTIVE,	/* limit set, timer running, bytes are being charged */
 };
 
 /**
@@ -28,20 +27,24 @@ enum net_quota_state {
  *		the expiry timer runs in softirq context
  * @state:	see enum net_quota_state; read locklessly (READ_ONCE) on the
  *		send/recv fast path, written under @lock
+ * @dead:	the process is exiting: no quota may be installed any more, so
+ *		no timer can be armed after net_quota_exit() has stopped it
  * @gen:	bumped on every install and every revoke, so a transfer that
  *		started under an old quota never touches a newer one
  * @period_sec:	length of the quota window, in seconds
  * @limit:	payload bytes allowed (sent + received, one combined counter)
  * @used:	payload bytes charged so far, including bytes reserved by
  *		transfers still in flight
- * @timer:	revokes the quota when the window ends
+ * @timer:	revokes the quota when the window ends; armed in the same
+ *		moment the limit is set
  *
- * A quota that is "exhausted" is simply state COUNTING with used >= limit.
+ * A quota that is "exhausted" is simply state ACTIVE with used >= limit.
  * When the timer fires the quota is cleared back to NQ_STATE_NONE for good.
  */
 struct net_quota_info {
 	spinlock_t		lock;
 	enum net_quota_state	state;
+	bool			dead;
 	u32			gen;
 	unsigned int		period_sec;
 	u64			limit;
