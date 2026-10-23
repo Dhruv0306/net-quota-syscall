@@ -7,6 +7,8 @@ has made, and the receive rule that is still open. The send change has been
 compiled with `W=1` against the full 7.2.10 tree (no warnings) but has **not**
 been run on the real kernel yet.
 
+The list of all open gaps is [README.md](README.md).
+
 ## The change, as given by the professor
 
 > Drop network request if more than remaining quota, eg if 100 kb limit is
