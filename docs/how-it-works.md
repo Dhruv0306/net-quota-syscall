@@ -134,9 +134,10 @@ The same flow in words, with the data that moves:
    loopback address. Unix sockets and `127.x` traffic are ignored.
 4. **Reserve before moving:** the allowed number of bytes is added to `used`
    up front, so two threads cannot both slip past the limit.
-5. **Partial transfer:** if `len` is more than what is left, a TCP send or any
-   receive is shortened (`iov_iter_truncate`). A UDP send is refused whole,
-   because cutting a datagram short would deliver a corrupt message.
+5. **Oversized request:** if `len` is more than what is left, a send is
+   refused whole with `EDQUOT` (TCP and UDP alike): nothing is sent and
+   nothing is charged. A receive is shortened (`iov_iter_truncate`) to what
+   is left.
 6. **After the transfer:** bytes that were reserved but not moved are given
    back. A receive from a loopback sender on an unconnected socket is not
    charged.
@@ -233,15 +234,17 @@ that call `nq_perror()`, such as the tests.
 |---|---|---|---|---|---|
 | 1 | send | 3000 | 3000 | 3000 | 3000 |
 | 2 | recv (the echo) | 3000 | 3000 | 3000 | 6000 |
-| 3 | send | 8000 | 4000 (shortened) | 4000 | 10000 |
-| 4 | send | 100 | 0 | -1, EDQUOT | 10000 |
-| 5 | recv | 100 | 0 | -1, EDQUOT | 10000 |
-| 6 | wait 6 s | | | | timer fired, quota gone |
-| 7 | send 1000, recv 5000 | | no limit | 1000, 5000 | not counted |
+| 3 | send | 8000 | 0 (does not fit) | -1, EDQUOT | 6000 |
+| 4 | send | 4000 | 4000 | 4000 | 10000 |
+| 5 | send | 100 | 0 | -1, EDQUOT | 10000 |
+| 6 | recv | 100 | 0 | -1, EDQUOT | 10000 |
+| 7 | wait 6 s | | | | timer fired, quota gone |
+| 8 | send 1000, recv 5000 | | no limit | 1000, 5000 | not counted |
 
-Sent and received bytes share the counter (steps 1 and 2), the last send is
-cut to fit (step 3), both directions stop at the limit (steps 4 and 5), and
-the timer lifts the limit by itself (steps 6 and 7).
+Sent and received bytes share the counter (steps 1 and 2), a send that does
+not fit is refused whole and costs nothing (step 3), so the exact remainder
+can still be used (step 4), both directions stop at the limit (steps 5 and 6),
+and the timer lifts the limit by itself (steps 7 and 8).
 
 ## 8. Worked example: a real program
 

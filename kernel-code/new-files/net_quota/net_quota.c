@@ -14,8 +14,10 @@
  *    revokes the quota when it ends; after that the process is unrestricted
  *    for good;
  *  - when the limit is reached, send/recv fail with -NQ_E_QUOTA_EXCEEDED
- *    until the window ends; a transfer that only partly fits is shortened
- *    (partial transfer) where that is safe, see __net_quota_begin();
+ *    until the window ends; a send larger than what is left is refused
+ *    whole with the same error (never partly done, and it costs no quota),
+ *    while a receive is still shortened to what is left, see
+ *    __net_quota_begin();
  *  - only AF_INET/AF_INET6 sockets whose peer is not a loopback address
  *    are counted;
  *  - a child created by fork() does not inherit the quota: it starts with no
@@ -217,10 +219,11 @@ static bool nq_socket_counts(struct socket *sock, const struct sockaddr *peer,
  * or -NQ_E_QUOTA_EXCEEDED if no quota is left. The window is already
  * running: it started when the limit was set.
  *
- * A request larger than the remaining quota is shortened to it (partial
- * transfer) for receives and for sends on stream sockets. A send on a
- * message-oriented socket (UDP, ...) is refused instead, because cutting a
- * datagram short would silently deliver a corrupt message.
+ * A send larger than the remaining quota is refused whole with
+ * -NQ_E_QUOTA_EXCEEDED, on every kind of socket: nothing is sent and nothing
+ * is charged, so a smaller request can still succeed. A receive larger than
+ * the remaining quota is shortened to it (partial transfer); how receives
+ * should behave is still open, see docs/gap/.
  */
 int __net_quota_begin(struct socket *sock, const struct sockaddr *peer,
 		      int peerlen, size_t *len, enum net_quota_dir dir,
@@ -247,7 +250,7 @@ int __net_quota_begin(struct socket *sock, const struct sockaddr *peer,
 		return -NQ_E_QUOTA_EXCEEDED;
 	}
 	if (*len > remaining) {
-		if (dir == NQ_DIR_SEND && sock->type != SOCK_STREAM) {
+		if (dir == NQ_DIR_SEND) {
 			spin_unlock_bh(&nq->lock);
 			return -NQ_E_QUOTA_EXCEEDED;
 		}

@@ -8,7 +8,8 @@
  * then G talks to the echo server and the test checks, in order:
  *   - the limit is applied once, a second call says "already set";
  *   - sent and received bytes share one counter (3000 + 3000 + 4000);
- *   - a request larger than what is left is shortened (partial transfer);
+ *   - a send larger than what is left is refused whole and costs nothing,
+ *     so the exact remainder can still be sent afterwards;
  *   - send and recv both fail with EDQUOT once the limit is reached;
  *   - after the period the quota is gone and traffic flows again.
  */
@@ -46,7 +47,12 @@ static int run_grandchild(const struct server_args *srv, int go_fd)
 	CHECK(n == 3000, "recv 3000 echoed bytes, counted on the same counter (got %zd)", n);
 
 	n = send(fd, buf, 8000, 0);
-	CHECK(n == 4000, "send 8000: shortened to the 4000 bytes left (got %zd)", n);
+	e = errno;
+	CHECK(n == -1 && e == NQ_E_QUOTA_EXCEEDED,
+	      "send 8000 with 4000 left is refused whole (got %zd)", n);
+
+	n = send(fd, buf, 4000, 0);
+	CHECK(n == 4000, "the refusal cost nothing: send of the exact 4000 left works (got %zd)", n);
 
 	n = send(fd, buf, 100, 0);
 	e = errno;

@@ -34,10 +34,11 @@ No privilege is needed: being an ancestor of the target is the permission.
   network. A kernel `timer_list` then revokes the quota; afterwards the
   process is unrestricted for good. A quota that is never used expires too.
 - **Limit reached:** every further send/receive fails with EDQUOT until the
-  window ends. A transfer that only partly fits is shortened to what is left
-  (partial transfer) for receives and for stream sends. A UDP-style send that
-  does not fit is refused whole instead, because a truncated datagram would
-  be a corrupt message.
+  window ends. A send larger than what is left is refused whole with EDQUOT on
+  every kind of socket (TCP and UDP alike): nothing is sent and no quota is
+  charged, so a smaller send can still succeed. A receive larger than what is
+  left is still shortened to it (partial transfer); the receive rule is open,
+  see `docs/gap/`.
 - **Existing quota:** never overwritten. The call fails with EEXIST and
   changes nothing, including the counter and the timer. An expired quota is
   gone, so a new one can be set.

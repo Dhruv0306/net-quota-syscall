@@ -15,7 +15,7 @@ user-code/
 │   └── nq_demo.c           direct syscall() and wrapper side by side (course add2Num style)
 ├── tests/
 │   ├── test_errors.c       every error path and message, no network needed
-│   ├── test_basic.c        parent, child, grandchild: limit, partial, EDQUOT, expiry
+│   ├── test_basic.c        parent, child, grandchild: limit, oversized send refused, EDQUOT, expiry
 │   ├── test_fork.c         a child of a restricted process is not restricted
 │   ├── test_timer.c        the expiry timer fires with no network activity
 │   ├── test_loopback.c     loopback and AF_UNIX are not counted

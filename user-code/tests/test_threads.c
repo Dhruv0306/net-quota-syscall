@@ -5,8 +5,9 @@
  * Four threads, each with its own TCP connection, send 700-byte blocks as
  * fast as they can. Together they must move exactly LIMIT bytes: not less
  * (the counter must not lose bytes) and not more (threads must not slip past
- * the limit together). 700 does not divide 20000, so the last transfer is a
- * partial one.
+ * the limit together). 700 does not divide 20000, so the last 400 bytes can
+ * never be used: a send that does not fit is refused whole, and the total is
+ * 28 blocks of 700 = 19600 bytes.
  *
  * Also: a thread id is not a process id, so the quota cannot be put on one.
  */
@@ -24,6 +25,7 @@
 #define PERIOD   30U
 #define NTHREADS 4
 #define CHUNK    700
+#define EXPECTED ((LIMIT / CHUNK) * CHUNK)	/* 19600 */
 
 static struct server_args g_srv;
 static pthread_barrier_t g_bar;
@@ -71,8 +73,8 @@ static int run_child(int go_fd, int tid_fd)
 		if (g_err[i] != NQ_E_QUOTA_EXCEEDED)
 			all_edquot = 0;
 	}
-	CHECK(sum == LIMIT, "%d threads together sent %llu bytes: exactly the limit of %llu",
-	      NTHREADS, (unsigned long long)sum, LIMIT);
+	CHECK(sum == EXPECTED, "%d threads together sent %llu bytes: %llu, the most whole blocks under the limit of %llu",
+	      NTHREADS, (unsigned long long)sum, EXPECTED, LIMIT);
 	CHECK(all_edquot, "every thread ended with EDQUOT");
 	return g_failures ? 1 : 0;
 }

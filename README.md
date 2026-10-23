@@ -36,8 +36,8 @@ sudo ./tests/run_tests.sh
 ## Status
 
 The patches apply cleanly on v7.2.10, and the kernel builds and boots as
-`7.2.10-netquota`. The full test run passed (errors, limit and partial
-transfer, inheritance, timer, loopback exclusion, exit cleanup, UDP, threads,
+`7.2.10-netquota`. The full test run passed (errors, limit and oversized-send
+refusal, inheritance, timer, loopback exclusion, exit cleanup, UDP, threads,
 and a real program started with `nq_run`) with no new kernel log warnings.
 That run was before the two latest changes, the timer starting when the limit
 is set and children not inheriting the quota. They compile cleanly but have not

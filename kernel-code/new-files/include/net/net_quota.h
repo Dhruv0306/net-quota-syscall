@@ -12,9 +12,10 @@
  *	ret = <do the transfer>;
  *	net_quota_end(&nqt, msg, ret);
  *
- * begin() reserves the bytes the transfer may move and, for a stream socket
- * or a receive, shortens the request to what is left of the quota (partial
- * transfer). end() gives back whatever was reserved but not moved. A
+ * begin() reserves the bytes the transfer may move. A send larger than what
+ * is left of the quota is refused whole; a receive is shortened to what is
+ * left (partial transfer). end() gives back whatever was reserved but not
+ * moved. A
  * process without a quota only pays one inlined load and branch.
  */
 #ifndef _NET_NET_QUOTA_H
