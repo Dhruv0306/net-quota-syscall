@@ -23,7 +23,10 @@ user-code/
 │   ├── test_exit.c         quotas vanish with their process in every state
 │   ├── test_udp.c          datagrams are refused whole, receives are cut
 │   ├── test_threads.c      four threads share one quota: 28 whole 700-byte blocks, no byte lost
-│   ├── test_common.[ch]    shared helpers
+│   ├── test_calls.c        sendmsg/recvmsg, sendmmsg/recvmmsg, sendfile, splice, MSG_PEEK, non-blocking, IPv6
+│   ├── test_uring.c        io_uring send, receive, zero-copy send, oversized send
+│   ├── test_zerocopy.c     reports whether TCP_ZEROCOPY_RECEIVE is counted (a finding, not pass/fail)
+│   ├── test_common.[ch]    shared helpers: run a process under a quota, probe what is left
 │   ├── net_server.c        TCP echo server, or UDP with the argument "udp"
 │   ├── setup_netns.sh      optional veth + namespace (needs CONFIG_VETH)
 │   └── run_tests.sh        starts the servers, runs the tests, checks the kernel log

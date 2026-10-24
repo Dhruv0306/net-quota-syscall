@@ -108,6 +108,7 @@ authorship rule in section 5.
 | A child does not inherit the quota (patch 0007, `test_fork`) | yes, same way | **no result recorded yet** |
 | A send larger than what is left is refused whole (`net_quota.c`, `test_basic`, `test_threads`) | yes, `W=1` against the full 7.2.10 tree, no warnings; user-space tests build without warnings | **no result recorded yet** |
 | A receive larger than what is left | not changed | waiting for the professor's wording |
+| New call-path tests: `test_calls`, `test_uring`, `test_zerocopy` | yes, build without warnings; the call sequences were run against a local echo server with the quota call stubbed out (so every data path works and nothing hangs) | **no result recorded yet**. Any `FAIL` there is a call path the quota does not count; `test_zerocopy` prints a `FINDING` line instead of passing or failing |
 
 The last hardware run covered the version before those changes: all 9 test
 programs (8 programs and one script) passed, and the kernel-log check was
@@ -183,6 +184,9 @@ The tests, and what each one proves:
 | `test_exit` | quotas disappear with their process in every state; a new process starts unrestricted |
 | `test_udp` | datagrams are refused whole, a refusal costs nothing, receives are still cut (this changes if the receive rule changes) |
 | `test_threads` | four threads share one quota with no byte lost or gained (28 whole 700-byte blocks = 19600 of 20000), and a thread id is rejected |
+| `test_calls` | each of `sendmsg`/`recvmsg`, `sendmmsg`/`recvmmsg`, `sendfile` (also one larger than the quota), `splice` both ways, `MSG_PEEK` (not counted, not refused at the limit), non-blocking `recv` (EAGAIN costs nothing) and IPv6 is counted exactly: after each, a probe checks that exactly the expected bytes are left |
+| `test_uring` | io_uring send, receive, zero-copy send, and an oversized send refused whole are counted exactly; skips with a message if io_uring is off |
+| `test_zerocopy` | reports whether data read with `TCP_ZEROCOPY_RECEIVE` is counted: a `FINDING` line, exit 0 either way |
 | `test_realprog.sh` | a real program (`dd`) started with `nq_run` is stopped at exactly the limit |
 
 A way to check kernel changes **without booting**: download the full source
@@ -233,9 +237,10 @@ owner's request.
 3. Loopback is decided by the destination address, not the interface, so
    traffic to the machine's own non-loopback address is counted.
 4. x86_64 only, needs `CONFIG_NET`, maximum period 7 days.
-5. Zero-copy and multishot variants of io_uring have not been checked. Two
-   receive paths that may bypass the hooks need a test: `TCP_ZEROCOPY_RECEIVE`
-   and io_uring zero-copy receive.
+5. Call paths: tests exist now (`test_calls`, `test_uring`, `test_zerocopy`)
+   but have not run on the real kernel. Still without a test: io_uring
+   multishot receive with provided buffers, and io_uring zero-copy receive
+   (needs a network card with header/data split, cannot run on a veth pair).
 6. `user-code/*.logs` are old test logs from before the later tests existed
    (`full_test.logs` still contains the removed `test_inherit`): replace them
    with a current run or remove them.
@@ -276,5 +281,7 @@ owner's request.
    professor.
 4. Optionally build once with `config/net_quota_debug.config` and run the tests
    again.
-5. Add tests for the two possibly uncounted receive paths (section 8, item 5).
+5. Read the results of `test_calls`, `test_uring` and `test_zerocopy` from the
+   run in step 1: every `FAIL`, and a `NOT counted` finding, is a real gap and
+   goes into `docs/gap/README.md`.
 6. Clean up the old `.logs` files.

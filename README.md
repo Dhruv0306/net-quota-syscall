@@ -47,6 +47,7 @@ sudo ./tests/run_tests.sh
 | Change 2: a child does not inherit the quota | yes, `W=1`, no warnings | **not yet** |
 | Change 3: a send larger than what is left is refused whole | yes, `W=1`, no warnings | **not yet** |
 | Change 3, receive side | waiting for the professor's wording | |
+| Call-path tests: `test_calls`, `test_uring`, `test_zerocopy` | yes, no warnings; every call ran against a local echo server with a stub in place of the quota (the data paths work, no hang) | **not yet**: only a run on the net_quota kernel shows whether each path is counted |
 
 The first job is to boot a kernel built from the current `main` and run
 `sudo ./tests/run_tests.sh`, then record the result here. Details and the next

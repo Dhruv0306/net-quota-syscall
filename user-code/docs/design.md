@@ -104,7 +104,9 @@ The list of open gaps is `docs/gap/README.md`.
    already used up.
 4. x86_64 only (no 32-bit or compat entry), requires `CONFIG_NET`, maximum
    period 7 days.
-5. Zero-copy and multishot variants of io_uring have not been checked.
+5. io_uring multishot receive (provided buffers) and io_uring zero-copy receive
+   have no test: the first needs more set-up than `test_uring` does, the second
+   needs a network card with header/data split.
 6. Tested on one machine only (Ubuntu 24.04, x86_64, kernel 7.2.10 from
    `make defconfig`), and not with the lockdep and atomic-sleep checks of
    `config/net_quota_debug.config`.
@@ -113,9 +115,13 @@ The list of open gaps is `docs/gap/README.md`.
    a subreaper and are no longer descendants of the original caller, so they
    cannot be restricted. A quota that is already set is not affected.
 8. **Traffic that may not be counted.** By design, only IPv4/IPv6 sockets are
-   counted. Not checked, and possibly not counted, because they may not go
-   through the hooks: `TCP_ZEROCOPY_RECEIVE` through `getsockopt()`, and
-   io_uring zero-copy receive. These need a test before anything is claimed.
+   counted. `TCP_ZEROCOPY_RECEIVE` through `getsockopt()` takes data straight
+   from the receive queue and may bypass the hooks; `test_zerocopy` was written
+   to find out and prints a `FINDING` line, but it has not run on the real
+   kernel yet, so nothing is claimed either way. The other call paths
+   (`sendmsg`, `sendmmsg`, `sendfile`, `splice`, io_uring send/receive and
+   zero-copy send, `MSG_PEEK`, non-blocking calls, IPv6) are covered by
+   `test_calls` and `test_uring`, also not yet run on the real kernel.
 9. **Accounting is by the calling process, not by the socket.** A restricted
    process can hand a socket to an unrestricted process (a descriptor sent over
    a Unix socket, or one inherited by a child, which starts unrestricted), and
