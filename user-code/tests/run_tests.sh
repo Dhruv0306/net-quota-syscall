@@ -4,6 +4,7 @@
 #
 #   sudo ./tests/run_tests.sh              # uses this machine's own IPv4 address
 #   sudo SERVER_IP=192.168.1.20 ./tests/run_tests.sh
+#   sudo SERVER_IP6=2001:db8::5 ./tests/run_tests.sh   # IPv6 case of test_calls
 #
 # Loopback (127.x) is not counted by net_quota, so the test server must listen
 # on a non-loopback address. The machine's own address is enough: the quota
@@ -28,6 +29,7 @@ cleanup() {
 	[ -n "${SERVER_PID:-}" ] && kill "$SERVER_PID" 2>/dev/null
 	[ -n "${LOOP_PID:-}" ] && kill "$LOOP_PID" 2>/dev/null
 	[ -n "${UDP_PID:-}" ] && kill "$UDP_PID" 2>/dev/null
+	[ -n "${V6_PID:-}" ] && kill "$V6_PID" 2>/dev/null
 	[ "$USE_NETNS" -eq 1 ] && "$HERE/setup_netns.sh" down
 }
 trap cleanup EXIT
@@ -57,6 +59,17 @@ else
 	"$BUILD/net_server" "$SERVER_IP" "$UDP_PORT" udp &
 fi
 UDP_PID=$!
+# IPv6 echo server for the IPv6 case of test_calls: only with a global IPv6
+# address of this machine (or SERVER_IP6), not in the namespace fallback.
+V6_ARGS=()
+if [ "$USE_NETNS" -eq 0 ]; then
+	SERVER_IP6="${SERVER_IP6:-$(ip -6 -o addr show scope global 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -1)}"
+	if [ -n "$SERVER_IP6" ]; then
+		"$BUILD/net_server" "$SERVER_IP6" "$PORT" &
+		V6_PID=$!
+		V6_ARGS=(--server6 "$SERVER_IP6")
+	fi
+fi
 sleep 1
 echo "test server on $SERVER_IP:$PORT"
 LOG_BEFORE=$(log_problems)
@@ -75,6 +88,9 @@ run "$BUILD/test_loopback" --server "$SERVER_IP" --port "$PORT" --loop-port "$LO
 run "$BUILD/test_exit" --server "$SERVER_IP" --port "$PORT"
 run "$BUILD/test_udp" --server "$SERVER_IP" --port "$UDP_PORT"
 run "$BUILD/test_threads" --server "$SERVER_IP" --port "$PORT"
+run "$BUILD/test_calls" --server "$SERVER_IP" --port "$PORT" ${V6_ARGS[@]+"${V6_ARGS[@]}"}
+run "$BUILD/test_uring" --server "$SERVER_IP" --port "$PORT"
+run "$BUILD/test_zerocopy" --server "$SERVER_IP" --port "$PORT"
 run "$HERE/test_realprog.sh" "$BUILD" "$SERVER_IP" "$PORT"
 
 LOG_AFTER=$(log_problems)
