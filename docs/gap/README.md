@@ -21,8 +21,7 @@ Last reviewed: 2026-10-23, after the three professor changes.
 | G6 | behaviour | Descendants whose parent has died are reparented to init or a subreaper and can no longer be restricted. | Decide whether to document it as accepted (it is, in `design.md` limitation 7) or change the check | decision |
 | G7 | behaviour | A zero-length send with nothing left returns `EDQUOT`. Minor. | Decide whether `len == 0` should pass; add a test either way | decision |
 | G8 | doc | `user-code/*.logs` are old captures. `full_test.logs` contains the removed `test_inherit`. | Replace them with a run of the current code (comes with G3), or delete them | G3 |
-| G9 | process | Patches 0001 to 0005 still carry `From: Claude (AI-assisted)` and `[PATCH n/5]`, against the authorship rule. About 9 early commits on `main` list Claude as author. | Optional: rewrite the five patch headers (file content only, no history rewrite). Leave the commits | decision |
-| G10 | process | Patches 0002 and 0006 do not build alone with the current `net_quota.c`; only the whole series does. | Documented in `kernel-code/README.md` and `setup-and-build.md`. Optional: squash the series into a clean one | decision |
+| G9 | process | Patches 0001, 0003, 0004 and 0005 still carry `From: Claude (AI-assisted)` in their headers, against the authorship rule. About 9 early commits on `main` list Claude as author. | Optional: rewrite the four patch headers (file content only, no history rewrite). Leave the commits | decision |
 
 ## Closed in the 2026-10-23 review
 
@@ -38,3 +37,4 @@ Last reviewed: 2026-10-23, after the three professor changes.
 | D8 | `handoff.md` was not in the repository | `docs/handoff.md` |
 | D9 | No single list of open items | this page |
 | D10 | No test used `sendmsg`, `recvmsg`, `sendmmsg`, `recvmmsg`, `sendfile`, `splice`, io_uring, `MSG_PEEK`, non-blocking sockets or IPv6, and nothing checked `TCP_ZEROCOPY_RECEIVE`, although the docs said the hooks cover them | tests `test_calls`, `test_uring`, `test_zerocopy`. Written, compiled and smoke-run; **results come with the G3 run** |
+| D11 | The series had three patches (0002, 0006, 0007) editing `kernel/fork.c` one on top of the other, so a dry run of the whole series on a fresh tree failed on 0007 ("2 out of 2 hunks FAILED"), and 0002 and 0006 did not build alone | folded into one `0002`, 0006 and 0007 removed; `fork.c` is byte for byte the same as before. See `kernel-code/README.md` and `setup-and-build.md` |

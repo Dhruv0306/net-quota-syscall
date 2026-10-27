@@ -18,12 +18,10 @@ kernel-code/
 │       └── uapi/linux/net_quota.h    NQ_* return codes shared with user space
 ├── patches/                        edits to existing kernel files
 │   ├── 0001  include/linux/sched/signal.h   quota field in signal_struct
-│   ├── 0002  kernel/fork.c                  init and inherit in copy_signal() (inherit removed by 0007)
+│   ├── 0002  kernel/fork.c                  init the quota in copy_signal(); a child starts unrestricted
 │   ├── 0003  kernel/exit.c                  clear the quota in do_exit()
 │   ├── 0004  net/socket.c                   count sends and receives
-│   ├── 0005  Kbuild, syscall_64.tbl, asm-generic/syscalls.h, linux/syscalls.h
-│   ├── 0006  kernel/fork.c                  stop the quota timer when fork() fails
-│   └── 0007  kernel/fork.c                  a child does not inherit the quota (undoes 0006's hook)
+│   └── 0005  Kbuild, syscall_64.tbl, asm-generic/syscalls.h, linux/syscalls.h
 └── config/
     ├── net_quota.config            names the build 7.2.10-netquota
     └── net_quota_debug.config      optional lockdep / atomic-sleep checks
@@ -36,24 +34,32 @@ version.
 
 ## Status
 
-The seven patches apply cleanly, in order, on a pristine v7.2.10. The code
+The five patches apply cleanly on a pristine v7.2.10, each on its own as well as in order, because every patch edits different files. The code
 before the professor's changes was built into a kernel, booted as
 `7.2.10-netquota`, and passed every test in `user-code/tests`, with no new
 warnings in the kernel log.
 
+The series was also dry-run patch by patch, applied and compiled with `W=1` (no
+warnings) on v7.2.12, the version found on the test machine on 2026-10-24; the
+hunks fit with small offsets. Everything below that says 7.2.10 holds for any
+7.2.x: the build is then named `7.2.x-netquota`.
+
 Three later changes compile without warnings against the full 7.2.10 tree with
 `W=1` but have **not** been booted or run through the tests yet: the timer
 starting when the limit is set (in `net_quota.c`), a child not inheriting the
-quota (patches 0006 and 0007), and a send larger than what is left being
+quota (patch 0002 and `net_quota.c`), and a send larger than what is left being
 refused whole (in `net_quota.c`). The receive side of that last change waits
 for the professor's wording. Nothing has been run with the debug options in
 `config/net_quota_debug.config` (lockdep and friends).
 
-The patches are an append-only history, so apply all seven, in order, before
-building. Patch 0002 alone calls `net_quota_inherit()`, which the current
-`net_quota.c` no longer has, and 0006 only makes sense with 0002; the tree
-builds again once 0007 is on. The current state of `kernel/fork.c` is one
-`#include` and one `net_quota_init()` call.
+Until 2026-10-24 there were seven patches, and three of them (0002, 0006,
+0007) edited `kernel/fork.c` one on top of the other, so a dry run of the whole
+series against a fresh tree failed on 0007. They were folded into one 0002 that
+adds the `#include` and the single `net_quota_init()` call; the resulting
+`kernel/fork.c` is byte for byte the same as the old three produced. A tree that
+was built from the old series needs nothing: its `fork.c` already is the final
+one. `docs/setup-and-build.md` says how to bring a tree in any other state up to
+date.
 
 ## Following the course steps on 7.2.10
 

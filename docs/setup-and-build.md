@@ -144,7 +144,7 @@ head -5 $KSRC/Makefile                # VERSION = 7, PATCHLEVEL = 2, SUBLEVEL = 
 
 ### B2. Copy the new files and apply the patches
 
-`new-files/` holds the six new files, and the seven patches make every change
+`new-files/` holds the six new files, and the five patches make every change
 to existing kernel files.
 
 ```bash
@@ -313,20 +313,32 @@ missing patches.
 ```bash
 cd $KSRC
 grep -c net_quota include/linux/sched/signal.h        # 0001: expect 2 or more
-grep -n  net_quota kernel/fork.c                      # 0002/0006/0007, see below
+grep -n  net_quota kernel/fork.c                      # 0002, see below
 grep -c net_quota kernel/exit.c                       # 0003: expect 2 or more
 grep -c net_quota net/socket.c                        # 0004: expect 1 or more
 grep -c net_quota Kbuild                              # 0005: expect 1
 ```
 
-`kernel/fork.c` tells which of 0002, 0006 and 0007 are on:
+`kernel/fork.c` tells whether 0002 is on, and whether it is the current one.
+Earlier versions of the series had three patches for this file (an inheriting
+0002, 0006 and 0007); they are now one patch, 0002, and a tree built from the
+old series already has the same final file.
 
-| `grep -n net_quota kernel/fork.c` shows | State |
-|---|---|
-| nothing | none of the three |
-| the `#include`, `net_quota_init`, `net_quota_inherit` | 0002 only: apply 0006, then 0007 |
-| the above plus `net_quota_exit` | 0002 and 0006: apply 0007 |
-| the `#include` and `net_quota_init` only | all three: nothing to apply |
+| `grep -n net_quota kernel/fork.c` shows | State | What to do |
+|---|---|---|
+| nothing | 0002 is not on | apply 0002 |
+| the `#include` and `net_quota_init` only | current | nothing |
+| the `#include`, `net_quota_init` and `net_quota_inherit` | old 0002 only | delete the `net_quota_inherit(...)` line: `sed -i '/net_quota_inherit/d' kernel/fork.c` |
+| the above plus a `net_quota_exit` line | old 0002 and old 0006 | delete the `net_quota_inherit(...)` line as above, then in `bad_fork_cleanup_signal:` put back the original three lines (see below) |
+
+The original `bad_fork_cleanup_signal:` block, to put back in the last case
+(remove the braces, the comment and the `net_quota_exit()` call):
+
+```c
+bad_fork_cleanup_signal:
+	if (!(clone_flags & CLONE_THREAD))
+		free_signal_struct(p->signal);
+```
 
 Then:
 
@@ -337,10 +349,9 @@ patch -p1 --dry-run < $NQ/kernel-code/patches/<missing patch>   # then without -
 make -j"$(nproc)" && make modules_install && make install && update-grub && reboot
 ```
 
-Apply the missing patches in numeric order and build only after the last one:
-with 0002 on and 0007 off, the new `net_quota.c` has no `net_quota_inherit()`
-and the build stops. These changes touch `net_quota.c` and `fork.c`, so only a
-few files rebuild.
+The other patches (0001, 0003, 0004, 0005) each edit files no other patch
+touches, so each one can be checked and applied on its own. These changes touch
+`net_quota.c` and `fork.c`, so only a few files rebuild.
 
 ## Go back to another kernel
 

@@ -1,0 +1,42 @@
+From 3d54d828818d143a1ecf6784b61fb22281016a92 Mon Sep 17 00:00:00 2001
+From: Dhruv Rakeshbhai Patel <dpatel5469@gmail.com>
+Date: Sat, 24 Oct 2026 08:00:00 +0000
+Subject: [PATCH 2/5] fork: set up the network quota in copy_signal()
+
+Initialise the network quota of every new process. A child starts with no
+quota, no limit and no timer, whatever its parent has: the quota stays with
+the process it was set on. Threads share the parent's signal_struct and are
+not affected.
+
+This replaces the former patches 0002, 0006 and 0007, whose combined effect
+on kernel/fork.c was exactly this one include and one call.
+
+Co-authored-by: Claude <noreply@anthropic.com>
+---
+ kernel/fork.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/kernel/fork.c b/kernel/fork.c
+index b22b5ba..072805c 100644
+--- a/kernel/fork.c
++++ b/kernel/fork.c
+@@ -126,6 +126,7 @@
+ #include <trace/events/task.h>
+ 
+ #include <kunit/visibility.h>
++#include <linux/net_quota.h>
+ 
+ /*
+  * Minimum number of threads to boot the kernel
+@@ -1771,6 +1772,8 @@ static int copy_signal(u64 clone_flags, struct task_struct *tsk)
+ 	mutex_init(&sig->cred_guard_mutex);
+ 	init_rwsem(&sig->exec_update_lock);
+ 
++	net_quota_init(&sig->net_quota);
++
+ 	return 0;
+ }
+ 
+-- 
+2.43.0
+

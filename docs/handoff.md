@@ -66,7 +66,7 @@ net-quota-syscall/
 │   ├── new-files/          the six new kernel files (copied onto the kernel source)
 │   │   ├── net_quota/        net_quota.c (the system call and all logic), net_quota_syscall.h, Makefile
 │   │   └── include/          linux/net_quota.h, net/net_quota.h, uapi/linux/net_quota.h
-│   ├── patches/            0001 to 0007: every edit to an existing kernel file
+│   ├── patches/            0001 to 0005: every edit to an existing kernel file
 │   └── config/             net_quota.config (names the build 7.2.10-netquota), net_quota_debug.config
 ├── user-code/
 │   ├── src/                wrapper library, nq_cli, nq_run, nq_demo
@@ -78,34 +78,36 @@ net-quota-syscall/
     └── gap/                open gaps and the pending professor change
 ```
 
-The seven patches:
+The five patches:
 
 | Patch | File | Change |
 |---|---|---|
 | 0001 | `include/linux/sched/signal.h` | the quota lives in `signal_struct`, so all threads of a process share it |
-| 0002 | `kernel/fork.c` | initialise the quota in `copy_signal()` |
+| 0002 | `kernel/fork.c` | initialise the quota in `copy_signal()`; a child starts with no quota |
 | 0003 | `kernel/exit.c` | stop the timer and clear the quota in `do_exit()` |
 | 0004 | `net/socket.c` | hooks in `sock_sendmsg_nosec()`, `sock_recvmsg_nosec()`, `sock_splice_read()` |
 | 0005 | `Kbuild`, `syscall_64.tbl`, `syscalls.h`, `asm-generic/syscalls.h` | build `net_quota/` and register syscall 472 |
-| 0006 | `kernel/fork.c` | stop the timer if `fork()` fails (added with the timer change) |
-| 0007 | `kernel/fork.c` | a child does not inherit the quota; also removes 0006's hook, which is no longer needed |
 
-0002 originally also called `net_quota_inherit()`; 0007 removes that call. The
-patches are an append-only history: apply all seven, in order, before building.
-0002 and 0006 do not build on their own with the current `net_quota.c`, which no
-longer has `net_quota_inherit()`. The two later changes (timer at set time, and
-refusing an oversized send) are in `net_quota.c` only, so they need no patch.
-Patches 0001 to 0005 still carry `From: Claude (AI-assisted)` and `[PATCH n/5]`
-in their headers; `patch -p1` ignores that, but it disagrees with the
-authorship rule in section 5.
+The series used to have seven patches: three of them (0002, 0006, 0007) edited
+`kernel/fork.c` one on top of the other, so a dry run of the whole series on a
+fresh tree failed on 0007. On 2026-10-24 they were folded into the one 0002
+above. The resulting `fork.c` is byte for byte what the three produced, so a
+tree built from the old series needs nothing. Every patch now edits different
+files and can be checked and applied alone; each patch's dry run works on a
+fresh tree. The two later changes (timer at set time, and refusing an
+oversized send) are in `net_quota.c` only, so they need no patch.
+
+Patches 0001, 0003, 0004 and 0005 still carry `From: Claude (AI-assisted)` in
+their headers; `patch -p1` ignores that, but it disagrees with the authorship
+rule in section 5. The new 0002 has Dhruv as author and Claude as co-author.
 
 ## 4. Status: what is proven and what is not
 
 | Change | Compiled | Run on the real kernel |
 |---|---|---|
 | Everything up to the professor's changes | yes, built into the kernel | yes: all test programs passed and the kernel log stayed clean |
-| Timer starts when the limit is set (`net_quota.c`; patch 0006 was a fork-failure hook that 0007 removed again) | yes, `W=1` against the full 7.2.10 tree, no warnings | **no result recorded yet** |
-| A child does not inherit the quota (patch 0007, `test_fork`) | yes, same way | **no result recorded yet** |
+| Timer starts when the limit is set (`net_quota.c`) | yes, `W=1` against the full 7.2.10 tree, no warnings | **no result recorded yet** |
+| A child does not inherit the quota (patch 0002, `test_fork`) | yes, same way | **no result recorded yet** |
 | A send larger than what is left is refused whole (`net_quota.c`, `test_basic`, `test_threads`) | yes, `W=1` against the full 7.2.10 tree, no warnings; user-space tests build without warnings | **no result recorded yet** |
 | A receive larger than what is left | not changed | waiting for the professor's wording |
 | New call-path tests: `test_calls`, `test_uring`, `test_zerocopy` | yes, build without warnings; the call sequences were run against a local echo server with the quota call stubbed out (so every data path works and nothing hangs) | **no result recorded yet**. Any `FAIL` there is a call path the quota does not count; `test_zerocopy` prints a `FINDING` line instead of passing or failing |
@@ -129,7 +131,7 @@ locking in `net_quota.c`.
 | Item | Value |
 |---|---|
 | Test machine | Ubuntu 24.04, x86_64, a real machine (not a VM) |
-| Kernel source | the 7.2.10 tarball from kernel.org, extracted at `/usr/src/linux-7.2.10`; **not a git repository**, so patches are applied with `patch -p1` |
+| Kernel source | the 7.2.10 tarball from kernel.org, extracted at `/usr/src/linux-7.2.10` (on 2026-10-24 the tree in use was `/usr/src/linux-7.2.12`; the five patches dry-run clean, apply and compile with `W=1` without warnings on both, and the build name follows the version: `7.2.12-netquota`); **not a git repository**, so patches are applied with `patch -p1` |
 | Configuration | the running kernel's `.config` plus `net_quota.config`, giving the name `7.2.10-netquota` |
 | GRUB menu | the original Ubuntu kernel and `7.2.10-netquota`, and a plain 7.2.10 if one was built earlier |
 | Git work | on Windows, `D:\github\net-quota-syscall`; the kernel build is on the Ubuntu machine |
@@ -157,8 +159,8 @@ patch -p1 < /path/to/net-quota-syscall/kernel-code/patches/<new patch>   # only 
 make -j"$(nproc)" && make modules_install && make install && update-grub && reboot
 ```
 
-If the tree is on 0001 to 0005 only, apply 0006 and then 0007 with the
-dry-run-then-apply loop from `setup-and-build.md` (step B2).
+If the tree already has net_quota in an older state, follow "Update an existing
+build" in `setup-and-build.md`.
 
 After the reboot, pick the `7.2.10-netquota` entry and run:
 
@@ -265,14 +267,15 @@ owner's request.
 - `git am` prints "whitespace errors" for the patch files in
   `kernel-code/patches/`: they contain patches, and Git is looking at the
   diff's own context lines. It is harmless.
-- Patches 0002 and 0006 do not build alone against the current new files: apply
-  the whole series before compiling.
+- The patch loop of `setup-and-build.md` step B2 first ran each dry run on its
+  own; with the old three `fork.c` patches that failed on 0007 (it needs the
+  two before it). With the current five patches the loop works as written.
 - A quota that is set but never used now expires after its period, like any
   other; `test_timer` used to assert the opposite and was rewritten.
 
 ## 10. Suggested next steps
 
-1. Boot a kernel built from the current `main` (patches 0001 to 0007) and run
+1. Boot a kernel built from the current `main` (patches 0001 to 0005) and run
    `sudo ./tests/run_tests.sh`. Record the result in section 4.
 2. Get the professor's wording for the receive side of the third change, and
    record it in `docs/gap/professor-change-3-drop-oversized-request.md`. Then

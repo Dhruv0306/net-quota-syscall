@@ -272,11 +272,10 @@ and the timer lifts the limit by itself (steps 7 and 8).
 | Quota struct and lifecycle functions | `kernel-code/new-files/include/linux/net_quota.h` |
 | Inline fast path for send, receive, splice | `kernel-code/new-files/include/net/net_quota.h` |
 | Quota field in the process | `kernel-code/patches/0001-*` (`include/linux/sched/signal.h`) |
-| Set up at fork, nothing inherited | `kernel-code/patches/0002-*` and `0007-*` (`kernel/fork.c`); only `net_quota_init()` is left in `copy_signal()` |
+| Set up at fork, nothing inherited | `kernel-code/patches/0002-*` (`kernel/fork.c`): one `#include` and one `net_quota_init()` call in `copy_signal()` |
 | Clear at exit | `kernel-code/patches/0003-*` (`kernel/exit.c`) |
 | Hooks on send and receive | `kernel-code/patches/0004-*` (`net/socket.c`) |
 | Build and register as syscall 472 | `kernel-code/patches/0005-*` (`Kbuild`, `syscall_64.tbl`, `syscalls.h`) |
-| Fork-failure cleanup, later made unnecessary | `kernel-code/patches/0006-*` (`kernel/fork.c`), undone by 0007 |
 | Wrapper and messages | `user-code/src/net_quota.c`, `user-code/include/net_quota_msgs.h` |
 | Command-line tools | `user-code/src/nq_cli.c`, `nq_run.c`, `nq_demo.c` |
 | Tests | `user-code/tests/` |

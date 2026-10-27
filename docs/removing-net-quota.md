@@ -6,8 +6,9 @@ up with a kernel that does not have it. Written for the setup in
 `/usr/src/linux-7.2.10`, **not a git repository**, patched with `patch -p1`.
 
 The source-tree steps (part B, steps 2 and 3) were tested on a pristine 7.2.10
-tree: all six new files copied in, patches 0001 to 0007 applied, then removed
-as described below. The result was byte-for-byte identical to the original
+tree: all six new files copied in, patches 0001 to 0005 applied, then removed
+as described below. (The reverse step was repeated with the five-patch series
+on the eight patched files: all came back identical to the original.) The result was byte-for-byte identical to the original
 tree (`diff -r` reported no difference). Rebuilding and booting the result was
 not tested.
 
@@ -46,11 +47,11 @@ some files show nothing, the tree has only part of the series applied. Still
 follow step 2: a reverse that does not match is reported, and step 4 lists the
 manual fallback.
 
-### 2. Undo the patches, newest first
+### 2. Undo the patches
 
-The order matters. 0002, 0006 and 0007 all edit `kernel/fork.c`, and each
-patch builds on the one before it, so they must come off in the reverse order
-they went on.
+Every patch edits different files, so the order does not matter for
+correctness. Going newest first is still a good habit, and it is what the loop
+does.
 
 ```bash
 cd /usr/src/linux-7.2.10
@@ -63,7 +64,7 @@ for p in $(ls -r $P/000*.patch); do
 done
 ```
 
-This takes 0007, 0006, 0005, 0004, 0003, 0002 and 0001 off, in that order. The
+This takes 0005, 0004, 0003, 0002 and 0001 off, in that order. The
 dry run before each real run means a patch that does not match stops the loop
 before it changes anything.
 
@@ -95,7 +96,7 @@ hand. The patches touch these places:
 | Patch | File | What to remove |
 |---|---|---|
 | 0001 | `include/linux/sched/signal.h` | the `net_quota` member of `signal_struct` and its `#include` |
-| 0002, 0006, 0007 | `kernel/fork.c` | the `net_quota_init()` call in `copy_signal()` and its `#include` |
+| 0002 | `kernel/fork.c` | the `net_quota_init()` call in `copy_signal()` and its `#include` |
 | 0003 | `kernel/exit.c` | the `net_quota_exit()` call in `do_exit()` and its `#include` |
 | 0004 | `net/socket.c` | the quota hooks in `sock_sendmsg_nosec()`, `sock_recvmsg_nosec()`, `sock_splice_read()` and the `#include` |
 | 0005 | `Kbuild` | the `obj-y += net_quota/` line |
@@ -173,8 +174,8 @@ the built binaries anywhere else, remove those copies as well.
 
 - **Do not delete only the new files.** The patched kernel files still call
   them, so the build stops with undefined references or missing headers.
-- **Do not skip 0006 and 0007** because they "only touch fork.c". 0002 cannot
-  be reversed correctly until they are off.
+- **A tree from the old seven-patch series** (before 2026-10-24) has exactly the
+  same files as one from the five patches, so the loop above works on it too.
 - **Windows line endings** break `patch`, for reverse as much as for forward
   runs. Use `git clone` or `git pull` on the Ubuntu machine for the patch
   files.
