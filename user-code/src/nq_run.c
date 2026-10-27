@@ -7,7 +7,10 @@
  * Only descendants can be restricted, so nq_run starts the command itself:
  * it forks, restricts the child, and only then lets the child exec the
  * command. The quota survives exec. Children the command forks are not
- * restricted (see test_fork). The command does not need to know about quotas:
+ * restricted (see test_fork), so a shell or wrapper that starts the real
+ * program as a child leaves that program unrestricted: make the shell exec it
+ * (nq_run 50000 20 sh -c 'exec curl ...'), or start the program directly.
+ * The command does not need to know about quotas:
  * it just sees send/recv fail with "Disk quota exceeded" (EDQUOT) at the limit.
  *
  *     nq_run 50000 20 curl -o /dev/null http://example.org/big-file
