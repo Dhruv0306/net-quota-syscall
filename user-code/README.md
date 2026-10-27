@@ -19,7 +19,7 @@ user-code/
 │   ├── test_fork.c         a child of a restricted process is not restricted
 │   ├── test_timer.c        the expiry timer fires with no network activity
 │   ├── test_loopback.c     loopback and AF_UNIX are not counted
-│   ├── test_realprog.sh    dd started with nq_run is stopped by the quota
+│   ├── test_realprog.sh    dd started with nq_run (exec'd by the shell) is stopped by the quota; as a forked child it is not
 │   ├── test_exit.c         quotas vanish with their process in every state
 │   ├── test_udp.c          datagrams are refused whole, receives are cut
 │   ├── test_threads.c      four threads share one quota: 28 whole 700-byte blocks, no byte lost

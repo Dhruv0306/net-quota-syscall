@@ -114,14 +114,16 @@ The list of open gaps is `docs/gap/README.md`.
    intermediate process has died, its children have been reparented to init or
    a subreaper and are no longer descendants of the original caller, so they
    cannot be restricted. A quota that is already set is not affected.
-8. **Traffic that may not be counted.** By design, only IPv4/IPv6 sockets are
-   counted. `TCP_ZEROCOPY_RECEIVE` through `getsockopt()` takes data straight
-   from the receive queue and may bypass the hooks; `test_zerocopy` was written
-   to find out and prints a `FINDING` line, but it has not run on the real
-   kernel yet, so nothing is claimed either way. The other call paths
-   (`sendmsg`, `sendmmsg`, `sendfile`, `splice`, io_uring send/receive and
-   zero-copy send, `MSG_PEEK`, non-blocking calls, IPv6) are covered by
-   `test_calls` and `test_uring`, also not yet run on the real kernel.
+8. **Traffic that is not counted.** By design, only IPv4/IPv6 sockets are
+   counted. **`TCP_ZEROCOPY_RECEIVE`** through `getsockopt()` takes data
+   straight from the receive queue, bypasses the hooks, and is **not counted**:
+   `test_zerocopy` read 32768 bytes this way on the real kernel (2026-10-27)
+   without being charged. Only a program that asks for it does this, but one
+   that does can receive without limit. The other call paths (`sendmsg`,
+   `sendmmsg`, `sendfile`, `splice`, io_uring send/receive and zero-copy send,
+   `MSG_PEEK`, non-blocking calls) are counted exactly, as `test_calls` and
+   `test_uring` show on the same run. IPv6 is covered by a test but that case
+   has not run yet.
 9. **Accounting is by the calling process, not by the socket.** A restricted
    process can hand a socket to an unrestricted process (a descriptor sent over
    a Unix socket, or one inherited by a child, which starts unrestricted), and
@@ -137,3 +139,7 @@ The list of open gaps is `docs/gap/README.md`.
     error.
 12. A zero-length send with nothing left returns `EDQUOT`, because the
     nothing-left check runs before the length is looked at.
+13. **Real programs:** `nq_run` restricts the one process it starts. If that
+    process is a shell or wrapper that runs the real program as a child, the
+    child is unrestricted (limitation 1). Use `exec` inside the shell or start
+    the program directly. `test_realprog.sh` checks both forms.

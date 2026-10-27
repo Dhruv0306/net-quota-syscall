@@ -40,18 +40,21 @@ sudo ./tests/run_tests.sh
 
 ## Status
 
-| What | Compiled | Run on the real kernel |
-|---|---|---|
-| Everything up to the professor's changes | yes | yes: all 9 test programs passed, kernel log clean |
-| Change 1: the timer starts when the limit is set | yes, `W=1`, no warnings | **not yet** |
-| Change 2: a child does not inherit the quota | yes, `W=1`, no warnings | **not yet** |
-| Change 3: a send larger than what is left is refused whole | yes, `W=1`, no warnings | **not yet** |
-| Change 3, receive side | waiting for the professor's wording | |
-| Call-path tests: `test_calls`, `test_uring`, `test_zerocopy` | yes, no warnings; every call ran against a local echo server with a stub in place of the quota (the data paths work, no hang) | **not yet**: only a run on the net_quota kernel shows whether each path is counted |
+Run on the test machine on 2026-10-27 with a kernel built from `main`
+(`sudo ./tests/run_tests.sh`), kernel log clean afterwards:
 
-The first job is to boot a kernel built from the current `main` and run
-`sudo ./tests/run_tests.sh`, then record the result here. Details and the next
-steps are in [docs/handoff.md](docs/handoff.md).
+| What | Result |
+|---|---|
+| Change 1: the timer starts when the limit is set | `test_timer` passed |
+| Change 2: a child does not inherit the quota | `test_fork` passed |
+| Change 3: a send larger than what is left is refused whole | `test_basic`, `test_udp`, `test_threads` passed |
+| Other call paths: `sendmsg`/`recvmsg`, `sendmmsg`/`recvmmsg`, `sendfile`, `splice`, `MSG_PEEK`, non-blocking, io_uring send/receive/zero-copy send | `test_calls` and `test_uring` passed (the IPv6 case was skipped: no IPv6 server) |
+| `TCP_ZEROCOPY_RECEIVE` | **not counted** (`test_zerocopy` finding): data read this way is not charged. Gap G11 |
+| A real program stopped at the limit (`test_realprog.sh`) | failed, because of the test: `dd` ran as a child of the restricted shell, and a child starts unrestricted. The test is fixed to `exec` dd; **rerun pending** |
+| Change 3, receive side | waiting for the professor's wording |
+
+Next steps and the open gaps are in [docs/handoff.md](docs/handoff.md) and
+[docs/gap/README.md](docs/gap/README.md).
 
 ## Branches
 
