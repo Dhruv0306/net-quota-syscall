@@ -1,27 +1,24 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * test_zerocopy: is data read with TCP_ZEROCOPY_RECEIVE counted?
+ * test_zerocopy: TCP_ZEROCOPY_RECEIVE is refused for a process under a quota.
  *
  * That receive path (getsockopt() on a TCP socket whose pages are mapped into
- * the process) takes data straight from the socket's receive queue and does
- * not go through sock_recvmsg(), where net_quota counts. This test finds out
- * what the kernel really does, instead of leaving it as an assumption.
+ * the process) takes data straight from the receive queue and does not go
+ * through sock_recvmsg(), where net_quota counts. On the first hardware run
+ * this test showed the data was not counted at all (gap G11). The kernel now
+ * returns EOPNOTSUPP from that option for a process that has a quota (patch
+ * 0006); a program falls back to recv(), which is counted.
  *
  * A restricted process sends 32768 bytes to the echo server, waits for the
- * echo, then reads it with TCP_ZEROCOPY_RECEIVE (with the copy buffer, so it
- * also works when the pages cannot be mapped), and then probes how much quota
- * is left.
+ * echo, and then:
  *
- * The result is a finding, not a pass or fail, and the program exits 0 either
- * way:
+ *   - asks for TCP_ZEROCOPY_RECEIVE: it must be refused with EOPNOTSUPP;
+ *   - reads the same data with a normal recv(): it is still in the socket and
+ *     is counted, which a probe of the quota left confirms.
  *
- *   FINDING: counted         the bytes read this way were charged: no gap
- *   FINDING: NOT counted     they were not: a restricted process can receive
- *                            data without using up its quota (record it in
- *                            docs/gap/ and design.md limitation 8)
- *
- * It exits 1 only if the set-up itself went wrong, and prints SKIP if this
- * kernel or header does not have the feature.
+ * If the option is accepted instead, bytes were taken without being charged,
+ * and the test fails. It prints SKIP if this system's headers or kernel do not
+ * have the feature at all.
  *
  * Usage: test_zerocopy --server <ip> --port <port>
  */
@@ -52,9 +49,10 @@ static int zc_body(void *arg)
 	static char copybuf[SENT];
 	struct tcp_zerocopy_receive z;
 	socklen_t zlen = sizeof(z);
-	size_t sent = 0, consumed, left, moved;
+	size_t sent = 0, moved;
+	ssize_t got;
 	enum tc_probe p;
-	int avail = 0, fd = tc_connect(&g_srv);
+	int avail = 0, err, fd = tc_connect(&g_srv);
 	void *map;
 	char *buf = malloc(4096);
 
@@ -91,31 +89,23 @@ static int zc_body(void *arg)
 	z.length = MAPLEN;
 	z.copybuf_address = (uint64_t)(uintptr_t)copybuf;
 	z.copybuf_len = sizeof(copybuf);
-	if (getsockopt(fd, IPPROTO_TCP, TCP_ZEROCOPY_RECEIVE, &z, &zlen)) {
-		printf("  SKIP [%d] getsockopt(TCP_ZEROCOPY_RECEIVE) failed (%s)\n",
-		       (int)getpid(), strerror(errno));
-		return 0;
-	}
-	consumed = z.length + (z.copybuf_len > 0 ? (size_t)z.copybuf_len : 0);
-	printf("  info [%d] TCP_ZEROCOPY_RECEIVE took %zu bytes (%u mapped, %d copied)\n",
-	       (int)getpid(), consumed, z.length, z.copybuf_len);
-	if (!consumed) {
-		printf("  SKIP [%d] nothing was taken by TCP_ZEROCOPY_RECEIVE\n", (int)getpid());
-		return 0;
-	}
-
-	left = LIMIT - sent - consumed;		/* what is left if it was counted */
-	p = tc_probe_remaining(fd, left, &moved);
-	if (p == TC_PROBE_COUNTED) {
-		printf("  FINDING [%d]: TCP_ZEROCOPY_RECEIVE is counted (%zu bytes charged)\n",
-		       (int)getpid(), consumed);
-	} else if (p == TC_PROBE_NOT_COUNTED) {
-		printf("  FINDING [%d]: TCP_ZEROCOPY_RECEIVE is NOT counted: %zu bytes were received without being charged\n",
-		       (int)getpid(), consumed);
-	} else {
-		CHECK(0, "the probe gave an unexpected result (neither counted nor clearly uncounted)");
+	if (getsockopt(fd, IPPROTO_TCP, TCP_ZEROCOPY_RECEIVE, &z, &zlen) == 0) {
+		CHECK(0, "TCP_ZEROCOPY_RECEIVE was accepted for a process under a quota: %u bytes mapped and %d copied without being charged",
+		      z.length, z.copybuf_len);
 		return 1;
 	}
+	err = errno;
+	if (err != EOPNOTSUPP) {
+		printf("  SKIP [%d] getsockopt(TCP_ZEROCOPY_RECEIVE) failed with %s, not the expected refusal\n",
+		       (int)getpid(), strerror(err));
+		return 0;
+	}
+	CHECK(1, "TCP_ZEROCOPY_RECEIVE is refused with EOPNOTSUPP under a quota");
+
+	got = tc_recv_exact(fd, SENT);
+	CHECK(got == SENT, "the data is still in the socket: a normal recv() reads %d bytes (got %zd)", SENT, got);
+	p = tc_probe_remaining(fd, LIMIT - sent - SENT, &moved);
+	CHECK(p == TC_PROBE_COUNTED, "that recv() was counted: exactly %zu bytes were left", (size_t)(LIMIT - sent - SENT));
 	return 0;
 }
 #endif
@@ -131,7 +121,7 @@ int main(int argc, char **argv)
 
 		CHECK(rc == 0, "set-up and probe in the restricted process went through");
 	}
-	printf("test_zerocopy: %s\n", g_failures ? "FAILED" : "DONE (see the FINDING line)");
+	printf("test_zerocopy: %s\n", g_failures ? "FAILED" : "PASSED");
 #else
 	printf("test_zerocopy: SKIP, this system's headers have no TCP_ZEROCOPY_RECEIVE\n");
 #endif

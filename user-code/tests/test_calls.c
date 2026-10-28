@@ -300,6 +300,9 @@ static int t_nonblock(void)
 	n = send(fd, buf, 2000, 0);
 	CHECK(n == 2000, "the EAGAINs cost nothing: all 2000 bytes can still be sent (got %zd)", n);
 	expect_left(fd, 0, "non-blocking recv");
+	n = send(fd, buf, 0, 0);
+	CHECK(n == -1 && errno == NQ_E_QUOTA_EXCEEDED,
+	      "a zero-length send with nothing left returns EDQUOT (intended, see design.md) (got %zd)", n);
 	close(fd);
 	return 0;
 }

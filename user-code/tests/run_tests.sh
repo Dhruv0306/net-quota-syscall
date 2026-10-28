@@ -5,6 +5,10 @@
 #   sudo ./tests/run_tests.sh              # uses this machine's own IPv4 address
 #   sudo SERVER_IP=192.168.1.20 ./tests/run_tests.sh
 #   sudo SERVER_IP6=2001:db8::5 ./tests/run_tests.sh   # IPv6 case of test_calls
+# Without a global IPv6 address and without SERVER_IP6, the script gives the
+# loopback interface a private address (fd00:6e71::1) for the run, so that the
+# IPv6 case can still run: net_quota decides by destination address, and only
+# ::1 counts as loopback. The address is removed again at the end.
 #
 # Loopback (127.x) is not counted by net_quota, so the test server must listen
 # on a non-loopback address. The machine's own address is enough: the quota
@@ -30,6 +34,7 @@ cleanup() {
 	[ -n "${LOOP_PID:-}" ] && kill "$LOOP_PID" 2>/dev/null
 	[ -n "${UDP_PID:-}" ] && kill "$UDP_PID" 2>/dev/null
 	[ -n "${V6_PID:-}" ] && kill "$V6_PID" 2>/dev/null
+	[ -n "${V6_ADDED:-}" ] && ip -6 addr del "$V6_ADDED/128" dev lo 2>/dev/null
 	[ "$USE_NETNS" -eq 1 ] && "$HERE/setup_netns.sh" down
 }
 trap cleanup EXIT
@@ -64,6 +69,11 @@ UDP_PID=$!
 V6_ARGS=()
 if [ "$USE_NETNS" -eq 0 ]; then
 	SERVER_IP6="${SERVER_IP6:-$(ip -6 -o addr show scope global 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -1)}"
+	if [ -z "$SERVER_IP6" ] && [ "$(cat /proc/sys/net/ipv6/conf/all/disable_ipv6 2>/dev/null)" = 0 ] &&
+	   ip -6 addr add fd00:6e71::1/128 dev lo nodad 2>/dev/null; then
+		SERVER_IP6=fd00:6e71::1
+		V6_ADDED=$SERVER_IP6
+	fi
 	if [ -n "$SERVER_IP6" ]; then
 		"$BUILD/net_server" "$SERVER_IP6" "$PORT" &
 		V6_PID=$!
