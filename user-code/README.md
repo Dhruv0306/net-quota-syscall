@@ -34,11 +34,9 @@ user-code/
 └── Makefile
 ```
 
-The three `*.logs` files in this directory (`full_test.logs`, `smoke_test.logs`,
-`demo_test.logs`) are old captures from before the current rules. In particular
-`full_test.logs` contains a `test_inherit` run, a test that no longer exists
-and asserted the opposite of today's `fork()` behaviour. They are not a record
-of the current code; replace them with a new run.
+There are no stored test logs: the old `*.logs` captures were removed because
+they were from before the current rules. Run `sudo ./tests/run_tests.sh` to get a
+current one.
 
 ## Build and run
 

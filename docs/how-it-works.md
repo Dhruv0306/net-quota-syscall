@@ -276,6 +276,7 @@ and the timer lifts the limit by itself (steps 7 and 8).
 | Clear at exit | `kernel-code/patches/0003-*` (`kernel/exit.c`) |
 | Hooks on send and receive | `kernel-code/patches/0004-*` (`net/socket.c`) |
 | Build and register as syscall 472 | `kernel-code/patches/0005-*` (`Kbuild`, `syscall_64.tbl`, `syscalls.h`) |
+| Refuse `TCP_ZEROCOPY_RECEIVE` under a quota | `kernel-code/patches/0006-*` (`net/ipv4/tcp.c`) |
 | Wrapper and messages | `user-code/src/net_quota.c`, `user-code/include/net_quota_msgs.h` |
 | Command-line tools | `user-code/src/nq_cli.c`, `nq_run.c`, `nq_demo.c` |
 | Tests | `user-code/tests/` |

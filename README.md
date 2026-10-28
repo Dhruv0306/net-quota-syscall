@@ -50,10 +50,12 @@ a clean kernel log:
 | Change 2: a child does not inherit the quota | `test_fork` passed |
 | Change 3: a send larger than what is left is refused whole | `test_basic`, `test_udp`, `test_threads` passed |
 | Other call paths: `sendmsg`/`recvmsg`, `sendmmsg`/`recvmmsg`, `sendfile`, `splice`, `MSG_PEEK`, non-blocking, io_uring send/receive/zero-copy send | `test_calls` and `test_uring` passed (the IPv6 case was skipped: no IPv6 server) |
-| `TCP_ZEROCOPY_RECEIVE` | **not counted** (`test_zerocopy` finding): data read this way is not charged. Gap G11 |
+| `TCP_ZEROCOPY_RECEIVE` | was **not counted** on the first run (`test_zerocopy` finding, gap G11). Patch 0006 now refuses the option with `EOPNOTSUPP` for a process under a quota; compiled with `W=1`, **not yet run**: the updated `test_zerocopy` expects the refusal |
 | A real program stopped at the limit (`test_realprog.sh`) | passed on the rerun: `dd` stopped at exactly 20000 bytes with `EDQUOT`. The first run failed because of the test (dd was a forked child, which starts unrestricted); it now `exec`s dd and also checks the forked case on purpose |
 | Change 3, receive side | waiting for the professor's wording |
 
+The kernel of that run had `CONFIG_PROVE_LOCKING` and `CONFIG_DEBUG_ATOMIC_SLEEP`
+on: lockdep and atomic-sleep checks ran during the tests and found nothing.
 Next steps and the open gaps are in [docs/handoff.md](docs/handoff.md) and
 [docs/gap/README.md](docs/gap/README.md).
 

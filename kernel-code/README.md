@@ -21,7 +21,8 @@ kernel-code/
 │   ├── 0002  kernel/fork.c                  init the quota in copy_signal(); a child starts unrestricted
 │   ├── 0003  kernel/exit.c                  clear the quota in do_exit()
 │   ├── 0004  net/socket.c                   count sends and receives
-│   └── 0005  Kbuild, syscall_64.tbl, asm-generic/syscalls.h, linux/syscalls.h
+│   ├── 0005  Kbuild, syscall_64.tbl, asm-generic/syscalls.h, linux/syscalls.h
+│   └── 0006  net/ipv4/tcp.c                 refuse TCP_ZEROCOPY_RECEIVE under a quota
 └── config/
     ├── net_quota.config            names the build 7.2.10-netquota
     └── net_quota_debug.config      optional lockdep / atomic-sleep checks
@@ -34,23 +35,21 @@ version.
 
 ## Status
 
-The five patches apply cleanly on a pristine v7.2.10, each on its own as well as in order, because every patch edits different files. The code
-before the professor's changes was built into a kernel, booted as
-`7.2.10-netquota`, and passed every test in `user-code/tests`, with no new
-warnings in the kernel log.
+The six patches apply cleanly on a pristine v7.2.10 and v7.2.12: a dry run of
+each, then all applied in order (each edits different files, so each also works
+alone). On 2026-10-27 a kernel built from patches 0001 to 0005 and the new files
+was booted on the test machine, and every test in `user-code/tests` passed with
+no new warnings in the kernel log. That kernel had `CONFIG_PROVE_LOCKING` and
+`CONFIG_DEBUG_ATOMIC_SLEEP` on, so lockdep and atomic-sleep checks ran during
+the tests; `CONFIG_DEBUG_SPINLOCK` and `CONFIG_DEBUG_OBJECTS_TIMERS` of the
+debug fragment have not been confirmed.
 
-The series was also dry-run patch by patch, applied and compiled with `W=1` (no
-warnings) on v7.2.12, the version found on the test machine on 2026-10-24; the
-hunks fit with small offsets. Everything below that says 7.2.10 holds for any
-7.2.x: the build is then named `7.2.x-netquota`.
-
-Three later changes compile without warnings against the full 7.2.10 tree with
-`W=1` but have **not** been booted or run through the tests yet: the timer
-starting when the limit is set (in `net_quota.c`), a child not inheriting the
-quota (patch 0002 and `net_quota.c`), and a send larger than what is left being
-refused whole (in `net_quota.c`). The receive side of that last change waits
-for the professor's wording. Nothing has been run with the debug options in
-`config/net_quota_debug.config` (lockdep and friends).
+Patch 0006 (refuse `TCP_ZEROCOPY_RECEIVE` under a quota) compiles with `W=1`
+without warnings on v7.2.12 but has **not** run yet: the first run found that
+data read that way was not counted. The updated `test_zerocopy` is its test.
+Everything below that says 7.2.10 holds for any 7.2.x: the build is then named
+`7.2.x-netquota`. The receive side of professor change 3 waits for the
+professor's wording.
 
 Until 2026-10-24 there were seven patches, and three of them (0002, 0006,
 0007) edited `kernel/fork.c` one on top of the other, so a dry run of the whole

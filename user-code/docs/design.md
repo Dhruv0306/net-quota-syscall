@@ -28,7 +28,8 @@ No privilege is needed: being an ancestor of the target is the permission.
 - **Which calls:** the hooks sit in `sock_sendmsg_nosec()`,
   `sock_recvmsg_nosec()` and `sock_splice_read()`, which covers send, sendto,
   sendmsg, sendmmsg, write, recv, recvfrom, recvmsg, recvmmsg, read, sendfile,
-  splice and io_uring socket operations.
+  splice and io_uring socket operations. `TCP_ZEROCOPY_RECEIVE`, which would
+  bypass them, is refused with `EOPNOTSUPP` for a process under a quota.
 - **Window:** `period_sec` seconds, started by the syscall itself: the timer
   runs from the moment the limit is set, whether or not the target uses the
   network. A kernel `timer_list` then revokes the quota. Nothing is renewed:
@@ -67,6 +68,8 @@ professor's changes were applied later, in this order.
 | A child created by `fork()` does not inherit the quota | professor, change 2 | in `main`; not yet run on the real kernel |
 | A send larger than what is left is refused whole, nothing is charged, error stays `EDQUOT` | professor, change 3 (decided 2026-10-23) | in `main`; not yet run on the real kernel |
 | A receive larger than what is left | professor, change 3, wording pending | **open**: receives are still shortened, see `docs/gap/` |
+| `TCP_ZEROCOPY_RECEIVE` fails with `EOPNOTSUPP` for a process under a quota | project owner, 2026-10-28 (after the test found it uncounted) | patch 0006; compiled, not yet run on the real kernel |
+| A zero-length send with nothing left returns `EDQUOT` | project owner, 2026-10-28 | in `main` (intended) |
 
 The full text of change 3, the answers given to the five questions it raised,
 and what is still open are in `docs/gap/professor-change-3-drop-oversized-request.md`.
@@ -110,10 +113,11 @@ The list of open gaps is `docs/gap/README.md`.
 6. Tested on one machine only (Ubuntu 24.04, x86_64, kernel 7.2.10 from
    `make defconfig`), and not with the lockdep and atomic-sleep checks of
    `config/net_quota_debug.config`.
-7. **Orphans:** the descendant check is made when the limit is set. If an
-   intermediate process has died, its children have been reparented to init or
-   a subreaper and are no longer descendants of the original caller, so they
-   cannot be restricted. A quota that is already set is not affected.
+7. **Orphans** (accepted by the project owner, 2026-10-28): the descendant
+   check is made when the limit is set. If an intermediate process has died,
+   its children have been reparented to init or a subreaper and are no longer
+   descendants of the original caller, so they cannot be restricted. A quota
+   that is already set is not affected.
 8. **Traffic that is not counted.** By design, only IPv4/IPv6 sockets are
    counted. **`TCP_ZEROCOPY_RECEIVE`** through `getsockopt()` takes data
    straight from the receive queue, bypasses the hooks, and is **not counted**:
@@ -138,7 +142,8 @@ The list of open gaps is `docs/gap/README.md`.
     one that does not fit fails, so a caller may see a short count and then an
     error.
 12. A zero-length send with nothing left returns `EDQUOT`, because the
-    nothing-left check runs before the length is looked at.
+    nothing-left check runs before the length is looked at. The project owner
+    decided on 2026-10-28 that this stays; `test_calls` checks it.
 13. **Real programs:** `nq_run` restricts the one process it starts. If that
     process is a shell or wrapper that runs the real program as a child, the
     child is unrestricted (limitation 1). Use `exec` inside the shell or start

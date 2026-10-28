@@ -1,3 +1,0 @@
-aoscsg623@user:~/Downloads/net-quota-syscall/user-code$ ./build/nq_cli 1 1000 5
-Process 1 is not a descendant of the calling process (requested limit: 1000 bytes)
-aoscsg623@user:~/Downloads/net-quota-syscall/user-code$ 

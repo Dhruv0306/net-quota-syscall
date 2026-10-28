@@ -144,7 +144,7 @@ head -5 $KSRC/Makefile                # VERSION = 7, PATCHLEVEL = 2, SUBLEVEL = 
 
 ### B2. Copy the new files and apply the patches
 
-`new-files/` holds the six new files, and the five patches make every change
+`new-files/` holds the six new files, and the six patches make every change
 to existing kernel files.
 
 ```bash
@@ -317,6 +317,7 @@ grep -n  net_quota kernel/fork.c                      # 0002, see below
 grep -c net_quota kernel/exit.c                       # 0003: expect 2 or more
 grep -c net_quota net/socket.c                        # 0004: expect 1 or more
 grep -c net_quota Kbuild                              # 0005: expect 1
+grep -c net_quota net/ipv4/tcp.c                      # 0006: expect 2 (0 = not applied)
 ```
 
 `kernel/fork.c` tells whether 0002 is on, and whether it is the current one.
@@ -349,7 +350,7 @@ patch -p1 --dry-run < $NQ/kernel-code/patches/<missing patch>   # then without -
 make -j"$(nproc)" && make modules_install && make install && update-grub && reboot
 ```
 
-The other patches (0001, 0003, 0004, 0005) each edit files no other patch
+The other patches (0001, 0003, 0004, 0005, 0006) each edit files no other patch
 touches, so each one can be checked and applied on its own. These changes touch
 `net_quota.c` and `fork.c`, so only a few files rebuild.
 

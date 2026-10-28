@@ -6,9 +6,9 @@ up with a kernel that does not have it. Written for the setup in
 `/usr/src/linux-7.2.10`, **not a git repository**, patched with `patch -p1`.
 
 The source-tree steps (part B, steps 2 and 3) were tested on a pristine 7.2.10
-tree: all six new files copied in, patches 0001 to 0005 applied, then removed
-as described below. (The reverse step was repeated with the five-patch series
-on the eight patched files: all came back identical to the original.) The result was byte-for-byte identical to the original
+tree: all six new files copied in, patches 0001 to 0006 applied, then removed
+as described below. (The reverse step was repeated with the six-patch series
+on the nine patched files: all came back identical to the original.) The result was byte-for-byte identical to the original
 tree (`diff -r` reported no difference). Rebuilding and booting the result was
 not tested.
 
@@ -38,7 +38,8 @@ Run as root on the Ubuntu machine. Keep the project repo at
 cd /usr/src/linux-7.2.10
 grep -rn "net_quota" Kbuild arch/x86/entry/syscalls/syscall_64.tbl \
     include/linux/syscalls.h include/asm-generic/syscalls.h \
-    include/linux/sched/signal.h kernel/fork.c kernel/exit.c net/socket.c
+    include/linux/sched/signal.h kernel/fork.c kernel/exit.c net/socket.c \
+    net/ipv4/tcp.c
 ls net_quota
 ```
 
@@ -64,7 +65,7 @@ for p in $(ls -r $P/000*.patch); do
 done
 ```
 
-This takes 0005, 0004, 0003, 0002 and 0001 off, in that order. The
+This takes 0006, 0005, 0004, 0003, 0002 and 0001 off, in that order. The
 dry run before each real run means a patch that does not match stops the loop
 before it changes anything.
 
@@ -102,6 +103,7 @@ hand. The patches touch these places:
 | 0005 | `Kbuild` | the `obj-y += net_quota/` line |
 | 0005 | `arch/x86/entry/syscalls/syscall_64.tbl` | the line for syscall `472` |
 | 0005 | `include/linux/syscalls.h`, `include/asm-generic/syscalls.h` | the `sys_net_quota` declarations |
+| 0006 | `net/ipv4/tcp.c` | the `#include <net/net_quota.h>` and the `if (net_quota_active()) return -EOPNOTSUPP;` check at the top of the `TCP_ZEROCOPY_RECEIVE` case |
 
 ### 5. Take the version tag off the build name
 
@@ -175,7 +177,7 @@ the built binaries anywhere else, remove those copies as well.
 - **Do not delete only the new files.** The patched kernel files still call
   them, so the build stops with undefined references or missing headers.
 - **A tree from the old seven-patch series** (before 2026-10-24) has exactly the
-  same files as one from the five patches, so the loop above works on it too.
+  same files as one from the six patches, so the loop above works on it too.
 - **Windows line endings** break `patch`, for reverse as much as for forward
   runs. Use `git clone` or `git pull` on the Ubuntu machine for the patch
   files.

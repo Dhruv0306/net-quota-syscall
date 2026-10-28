@@ -1,5 +1,0 @@
-aoscsg623@user:~/Downloads/net-quota-syscall/user-code$ ./build/nq_demo
-Restricting child 11070 to 5000 bytes for 10 seconds
-Result of direct call:  0  Process 11070: network data limit of 5000 bytes set
-Result of wrapper call: -1  Process 11070: a network data limit is already set, the requested 5000 bytes were not applied
-aoscsg623@user:~/Downloads/net-quota-syscall/user-code$ 

@@ -39,7 +39,7 @@ rather than from the original assignment text, it says so.
 |---|---|
 | Who can be restricted | a process (not a single thread) that is a child, grandchild, ... of the caller; never the caller itself; no special privilege needed |
 | What is counted | payload bytes, sent and received, on one combined counter; only IPv4/IPv6 sockets whose peer is not a loopback address (`127.x`, `::1`); Unix sockets and `MSG_PEEK` are not counted |
-| Which calls | everything that goes through the socket layer: send, sendto, sendmsg, sendmmsg, write, recv, read, sendfile, splice, io_uring socket operations |
+| Which calls | everything that goes through the socket layer: send, sendto, sendmsg, sendmmsg, write, recv, read, sendfile, splice, io_uring socket operations. `TCP_ZEROCOPY_RECEIVE` bypasses that layer, so it fails with `EOPNOTSUPP` for a process under a quota (patch 0006) |
 | Limit reached | send and receive fail with `EDQUOT` until the period ends |
 | Oversized request | **a send larger than what is left is refused whole with `EDQUOT`, on TCP and UDP alike; nothing is sent and nothing is charged** (professor's third change). A receive larger than what is left is still shortened to it: the receive rule is waiting for the professor's wording |
 | Timer | **starts when the limit is set** (professor's change; before, it started at the first network use) and revokes the quota when the period ends. Nothing is renewed automatically; an ancestor can set a new quota afterwards. A quota that is never used expires too |
@@ -66,7 +66,7 @@ net-quota-syscall/
 │   ├── new-files/          the six new kernel files (copied onto the kernel source)
 │   │   ├── net_quota/        net_quota.c (the system call and all logic), net_quota_syscall.h, Makefile
 │   │   └── include/          linux/net_quota.h, net/net_quota.h, uapi/linux/net_quota.h
-│   ├── patches/            0001 to 0005: every edit to an existing kernel file
+│   ├── patches/            0001 to 0006: every edit to an existing kernel file
 │   └── config/             net_quota.config (names the build 7.2.10-netquota), net_quota_debug.config
 ├── user-code/
 │   ├── src/                wrapper library, nq_cli, nq_run, nq_demo
@@ -78,7 +78,7 @@ net-quota-syscall/
     └── gap/                open gaps and the pending professor change
 ```
 
-The five patches:
+The six patches:
 
 | Patch | File | Change |
 |---|---|---|
@@ -87,6 +87,7 @@ The five patches:
 | 0003 | `kernel/exit.c` | stop the timer and clear the quota in `do_exit()` |
 | 0004 | `net/socket.c` | hooks in `sock_sendmsg_nosec()`, `sock_recvmsg_nosec()`, `sock_splice_read()` |
 | 0005 | `Kbuild`, `syscall_64.tbl`, `syscalls.h`, `asm-generic/syscalls.h` | build `net_quota/` and register syscall 472 |
+| 0006 | `net/ipv4/tcp.c` | `TCP_ZEROCOPY_RECEIVE` fails with `EOPNOTSUPP` for a process under a quota (it bypassed the counting hooks) |
 
 The series used to have seven patches: three of them (0002, 0006, 0007) edited
 `kernel/fork.c` one on top of the other, so a dry run of the whole series on a
@@ -97,18 +98,19 @@ files and can be checked and applied alone; each patch's dry run works on a
 fresh tree. The two later changes (timer at set time, and refusing an
 oversized send) are in `net_quota.c` only, so they need no patch.
 
-Patches 0001, 0003, 0004 and 0005 still carry `From: Claude (AI-assisted)` in
-their headers; `patch -p1` ignores that, but it disagrees with the authorship
-rule in section 5. The new 0002 has Dhruv as author and Claude as co-author.
+All six patch headers have Dhruv as author and Claude as co-author, as section 5
+requires.
 
 ## 4. Status: what is proven and what is not
 
 Run on the test machine on 2026-10-27, on a kernel built from `main`, with
 `sudo ./tests/run_tests.sh`. The second run ended with `ALL TESTS PASSED`
-(11 programs and the realprog script; `test_zerocopy` is a finding, not a
-pass). The kernel log check printed "no new warnings or
+(11 programs and the realprog script; `test_zerocopy` reported a finding, see
+below). That kernel was built from patches 0001 to 0005 and the new files. The kernel log check printed "no new warnings or
 oopses", and `dmesg | grep -E 'BUG:|WARNING:|Oops|lockdep|net_quota'` showed
-only the line "RCU lockdep checking is enabled" printed at boot.
+only the line "RCU lockdep checking is enabled" printed at boot. The kernel
+had `CONFIG_PROVE_LOCKING=y` and `CONFIG_DEBUG_ATOMIC_SLEEP=y`, so lockdep and
+atomic-sleep checks ran during the tests and found nothing.
 
 | Change | Compiled | Run on the real kernel |
 |---|---|---|
@@ -118,7 +120,7 @@ only the line "RCU lockdep checking is enabled" printed at boot.
 | A send larger than what is left is refused whole (`net_quota.c`) | yes | **yes: `test_basic`, `test_udp`, `test_threads` passed** (threads: 19600 of 20000, every thread ended with `EDQUOT`) |
 | `sendmsg`/`recvmsg`, `sendmmsg`/`recvmmsg`, `sendfile` (also oversized), `splice` both ways, `MSG_PEEK`, non-blocking `recv` | yes | **yes: `test_calls` passed**, each path counted exactly. The IPv6 case was skipped (no IPv6 server) |
 | io_uring send, receive, zero-copy send, oversized send | yes | **yes: `test_uring` passed**; the oversized send came back as `-122` (`EDQUOT`) |
-| `TCP_ZEROCOPY_RECEIVE` | yes | **finding: NOT counted.** 32768 bytes were read through the copy buffer without being charged. New gap G11 |
+| `TCP_ZEROCOPY_RECEIVE` | yes, `W=1`, no warnings (patch 0006, 7.2.12) | **first run: NOT counted** (32768 bytes read through the copy buffer, nothing charged; gap G11). **Fixed by patch 0006, rerun pending:** the updated `test_zerocopy` expects `EOPNOTSUPP` and then a counted `recv()` |
 | A real program stopped at the limit (`test_realprog.sh`) | yes | **yes, on the rerun:** dd stopped at exactly 20000 bytes with `Disk quota exceeded`, exit status 1; dd run as a child of the restricted shell was not limited, as designed. (The first run failed because the test ran dd as a forked child; fixed by `exec`.) |
 | A receive larger than what is left | not changed | waiting for the professor's wording |
 
@@ -135,7 +137,7 @@ counting this run as the debug run.
 | Item | Value |
 |---|---|
 | Test machine | Ubuntu 24.04, x86_64, a real machine (not a VM) |
-| Kernel source | the 7.2.10 tarball from kernel.org, extracted at `/usr/src/linux-7.2.10` (on 2026-10-24 the tree in use was `/usr/src/linux-7.2.12`; the five patches dry-run clean, apply and compile with `W=1` without warnings on both, and the build name follows the version: `7.2.12-netquota`); **not a git repository**, so patches are applied with `patch -p1` |
+| Kernel source | the 7.2.10 tarball from kernel.org, extracted at `/usr/src/linux-7.2.10` (on 2026-10-24 the tree in use was `/usr/src/linux-7.2.12`; the patches dry-run clean, apply and compile with `W=1` without warnings on both, and the build name follows the version: `7.2.12-netquota`); **not a git repository**, so patches are applied with `patch -p1` |
 | Configuration | the running kernel's `.config` plus `net_quota.config`, giving the name `7.2.10-netquota` |
 | GRUB menu | the original Ubuntu kernel and `7.2.10-netquota`, and a plain 7.2.10 if one was built earlier |
 | Git work | on Windows, `D:\github\net-quota-syscall`; the kernel build is on the Ubuntu machine |
@@ -239,23 +241,22 @@ owner's request.
    restrict it. Alternatives, none built: let the child inherit its own copy
    (the previous behaviour, which still lets forking multiply the limit), or
    let parent and children share one counter, which closes the hole.
-2. The debug-config build has never been run (section 4).
+2. The debug options: lockdep and atomic-sleep checks were on during the
+   hardware run and found nothing; the other three options of the debug fragment
+   are unconfirmed (section 4).
 3. Loopback is decided by the destination address, not the interface, so
    traffic to the machine's own non-loopback address is counted.
 4. x86_64 only, needs `CONFIG_NET`, maximum period 7 days.
 5. Call paths: `test_calls` and `test_uring` passed on the real kernel, so
-   those paths are counted. **`TCP_ZEROCOPY_RECEIVE` is not counted**
-   (`test_zerocopy`, gap G11): a restricted process can read TCP data through it
-   without using quota. Still without a test: io_uring multishot receive with
-   provided buffers, and io_uring zero-copy receive (needs a network card with
-   header/data split, cannot run on a veth pair).
-6. `user-code/*.logs` are old test logs from before the later tests existed
-   (`full_test.logs` still contains the removed `test_inherit`): replace them
-   with a current run or remove them.
-7. Descendants whose parent has died are reparented and can no longer be
-   restricted; accounting is by calling process, so a socket handed to an
-   unrestricted process escapes it, like the fork hole.
-8. The receive rule of the third change is open (section 7).
+   those paths are counted. `TCP_ZEROCOPY_RECEIVE` was not counted; patch 0006
+   refuses it under a quota (rerun pending). Still without a test: io_uring
+   multishot receive with provided buffers, and io_uring zero-copy receive
+   (needs a network card with header/data split, cannot run on a veth pair).
+6. Descendants whose parent has died are reparented and can no longer be
+   restricted (accepted); accounting is by calling process, so a socket handed
+   to an unrestricted process escapes it, like the fork hole.
+7. The receive rule of the third change is open (section 7).
+8. A zero-length send with nothing left returns `EDQUOT` (decided: intended).
 9. The full list, with an action for each item, is `docs/gap/README.md`.
 
 ## 9. Gotchas
@@ -275,7 +276,7 @@ owner's request.
   diff's own context lines. It is harmless.
 - The patch loop of `setup-and-build.md` step B2 first ran each dry run on its
   own; with the old three `fork.c` patches that failed on 0007 (it needs the
-  two before it). With the current five patches the loop works as written.
+  two before it). With the current six patches the loop works as written.
 - `nq_run` restricts only the process it starts. `nq_run 20000 20 bash -c 'dd ...'`
   leaves dd unrestricted, because bash forks it and a child starts without a
   quota. Use `exec dd ...` inside the shell, or start the program directly.
@@ -285,19 +286,14 @@ owner's request.
 
 ## 10. Suggested next steps
 
-1. Decide what to do about `TCP_ZEROCOPY_RECEIVE` (gap G11): refuse the option
-   for a process under a quota, or charge what it takes. Either needs a kernel
-   change in `net/ipv4/tcp.c` (a new patch). Then rerun `test_zerocopy`: it
-   should report "counted".
+1. Pull `main`, rebuild the kernel with patch 0006 (setup-and-build.md, "Update
+   an existing build") and `user-code`, and rerun `sudo ./tests/run_tests.sh`.
+   `test_zerocopy` should now print `PASSED`. Watch also the new zero-length
+   check in `test_calls` and the IPv6 case.
 2. Get the professor's wording for the receive side of the third change, and
    record it in `docs/gap/professor-change-3-drop-oversized-request.md`. Then
    implement it.
 3. Decide what to do about the fork hole (section 8, item 1), ideally with the
    professor. The `test_realprog.sh` result is a real-world example of it.
-4. Check whether the tested kernel had the debug options; if not, build once
-   with `config/net_quota_debug.config` and run the tests again.
-5. Run the IPv6 case of `test_calls` (`SERVER_IP6=<address>`), or accept that
-   it stays untested.
-6. Save the output of a full run as `user-code/full_test.logs`
-   (`sudo ./tests/run_tests.sh 2>&1 | tee full_test.logs`): the file in the
-   repository is from before the current rules.
+4. Confirm the remaining debug options (section 4) or build once with
+   `config/net_quota_debug.config` and rerun.
