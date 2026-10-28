@@ -104,7 +104,9 @@ rule in section 5. The new 0002 has Dhruv as author and Claude as co-author.
 ## 4. Status: what is proven and what is not
 
 Run on the test machine on 2026-10-27, on a kernel built from `main`, with
-`sudo ./tests/run_tests.sh`. The kernel log check printed "no new warnings or
+`sudo ./tests/run_tests.sh`. The second run ended with `ALL TESTS PASSED`
+(11 programs and the realprog script; `test_zerocopy` is a finding, not a
+pass). The kernel log check printed "no new warnings or
 oopses", and `dmesg | grep -E 'BUG:|WARNING:|Oops|lockdep|net_quota'` showed
 only the line "RCU lockdep checking is enabled" printed at boot.
 
@@ -117,11 +119,11 @@ only the line "RCU lockdep checking is enabled" printed at boot.
 | `sendmsg`/`recvmsg`, `sendmmsg`/`recvmmsg`, `sendfile` (also oversized), `splice` both ways, `MSG_PEEK`, non-blocking `recv` | yes | **yes: `test_calls` passed**, each path counted exactly. The IPv6 case was skipped (no IPv6 server) |
 | io_uring send, receive, zero-copy send, oversized send | yes | **yes: `test_uring` passed**; the oversized send came back as `-122` (`EDQUOT`) |
 | `TCP_ZEROCOPY_RECEIVE` | yes | **finding: NOT counted.** 32768 bytes were read through the copy buffer without being charged. New gap G11 |
-| A real program stopped at the limit (`test_realprog.sh`) | yes | **failed, test bug:** the test ran dd as a child of the restricted bash, and a child starts unrestricted (change 2). The test now `exec`s dd; **rerun pending** |
+| A real program stopped at the limit (`test_realprog.sh`) | yes | **yes, on the rerun:** dd stopped at exactly 20000 bytes with `Disk quota exceeded`, exit status 1; dd run as a child of the restricted shell was not limited, as designed. (The first run failed because the test ran dd as a forked child; fixed by `exec`.) |
 | A receive larger than what is left | not changed | waiting for the professor's wording |
 
-Never done: a rerun of `test_realprog.sh` after the fix; the IPv6 case of
-`test_calls` (needs `SERVER_IP6` or a global IPv6 address); a build with
+Not done yet: the IPv6 case of `test_calls` (skipped on both runs: it needs
+`SERVER_IP6` or a global IPv6 address on the test machine); and a build with
 `config/net_quota_debug.config` (lockdep, sleeping-in-atomic checks). The boot
 line "RCU lockdep checking is enabled" suggests lockdep may already be on in the
 kernel that was tested; check with
@@ -283,17 +285,19 @@ owner's request.
 
 ## 10. Suggested next steps
 
-1. Pull `main`, rebuild `user-code`, and rerun `sudo ./tests/run_tests.sh`.
-   `test_realprog.sh` should now pass. Then replace the old `user-code/*.logs`
-   with the output of that run.
-2. Decide what to do about `TCP_ZEROCOPY_RECEIVE` (gap G11): refuse the option
+1. Decide what to do about `TCP_ZEROCOPY_RECEIVE` (gap G11): refuse the option
    for a process under a quota, or charge what it takes. Either needs a kernel
-   change in `net/ipv4/tcp.c` (a new patch).
-3. Get the professor's wording for the receive side of the third change, and
+   change in `net/ipv4/tcp.c` (a new patch). Then rerun `test_zerocopy`: it
+   should report "counted".
+2. Get the professor's wording for the receive side of the third change, and
    record it in `docs/gap/professor-change-3-drop-oversized-request.md`. Then
    implement it.
-4. Decide what to do about the fork hole (section 8, item 1), ideally with the
+3. Decide what to do about the fork hole (section 8, item 1), ideally with the
    professor. The `test_realprog.sh` result is a real-world example of it.
-5. Check whether the tested kernel had the debug options; if not, build once
+4. Check whether the tested kernel had the debug options; if not, build once
    with `config/net_quota_debug.config` and run the tests again.
-6. Run the IPv6 case of `test_calls` (`SERVER_IP6=<address>`).
+5. Run the IPv6 case of `test_calls` (`SERVER_IP6=<address>`), or accept that
+   it stays untested.
+6. Save the output of a full run as `user-code/full_test.logs`
+   (`sudo ./tests/run_tests.sh 2>&1 | tee full_test.logs`): the file in the
+   repository is from before the current rules.
