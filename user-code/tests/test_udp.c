@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * test_udp: datagram sockets. Unlike a TCP stream, a datagram cannot be cut
- * short without delivering a corrupt message, so a send that does not fit is
- * refused whole. Receives are still shortened to what is left.
+ * test_udp: datagram sockets. A datagram cannot be cut short without
+ * delivering a corrupt message, so nothing is ever done partly: a send that
+ * does not fit is refused whole, and so is a receive when the datagram that is
+ * waiting is larger than what is left. The refused datagram stays queued, and
+ * a refusal costs nothing. The socket is unconnected (sendto / recvfrom), so
+ * the kernel also has to look up the sender before refusing.
  *
  * Limit 2500 bytes, against the UDP echo server (net_server ... udp):
  *   send 1000        ok                          used 1000
@@ -10,13 +13,16 @@
  *   send 1000        refused with EDQUOT: only 500 left, nothing is cut off
  *   send 400         ok, the refusal cost nothing  used 2400
  *   send 400         refused: only 100 left
- *   recv (pending 400-byte echo)  cut to the 100 bytes left     used 2500
+ *   recv (400-byte echo waiting)   refused: 400 is more than the 100 left,
+ *                                  for any buffer size; it stays queued
+ *   send 100         ok: the refused receives cost nothing   used 2500
  *   recv             EDQUOT, the quota is used up
  */
 #define _GNU_SOURCE
 #include <arpa/inet.h>
 #include <errno.h>
 #include <netinet/in.h>
+#include <poll.h>
 #include <signal.h>
 #include <string.h>
 #include <sys/socket.h>
@@ -64,8 +70,24 @@ static int run_child(const struct sockaddr_in *srv, int go_fd)
 	if (n == -1)
 		nq_perror(e, getpid(), LIMIT);
 
+	/* Wait until the 400-byte echo is queued, so its size is known. */
+	poll(&(struct pollfd){ .fd = fd, .events = POLLIN }, 1, 2000);
+
 	n = recvfrom(fd, buf, sizeof(buf), 0, NULL, NULL);
-	CHECK(n == 100, "recv of the 400-byte echo is cut to the 100 bytes left (got %zd)", n);
+	e = errno;
+	CHECK(n == -1 && e == NQ_E_QUOTA_EXCEEDED,
+	      "recv with a 400-byte datagram waiting and 100 left is refused whole, not cut (got %zd)", n);
+
+	n = recvfrom(fd, buf, 50, 0, NULL, NULL);
+	e = errno;
+	CHECK(n == -1 && e == NQ_E_QUOTA_EXCEEDED,
+	      "a smaller buffer does not help: the datagram, not the buffer, is judged (got %zd)", n);
+
+	n = recvfrom(fd, buf, sizeof(buf), MSG_PEEK | MSG_DONTWAIT, NULL, NULL);
+	CHECK(n == 400, "the refused datagram is still queued: a peek sees its 400 bytes (got %zd)", n);
+
+	n = SEND(100);
+	CHECK(n == 100, "send 100 works: the refused receives used up nothing (got %zd)", n);
 
 	n = recvfrom(fd, buf, sizeof(buf), MSG_DONTWAIT, NULL, NULL);
 	e = errno;

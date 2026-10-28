@@ -15,6 +15,8 @@
  *   splice                     socket to pipe, and pipe to socket
  *   MSG_PEEK                   not counted, and not refused at the limit
  *   non-blocking recv          EAGAIN on an empty socket costs nothing
+ *   TCP receive                judged by the data waiting: refused whole when
+ *                              it is more than what is left, data stays queued
  *   IPv6                       only with --server6 <ip6>, TCP echo server
  *
  * Usage: test_calls --server <ip> --port <port> [--server6 <ip6>]
@@ -27,6 +29,7 @@
 #include <signal.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/ioctl.h>
 #include <sys/sendfile.h>
 #include <sys/socket.h>
 #include <sys/uio.h>
@@ -307,6 +310,44 @@ static int t_nonblock(void)
 	return 0;
 }
 
+static int t_recv_whole(void)
+{
+	char buf[4096];
+	int avail = 0, e, fd = open_srv();
+	ssize_t n;
+
+	if (fd < 0)
+		return 1;
+	fill(buf, sizeof(buf), 'r');
+	n = send(fd, buf, 3000, 0);
+	CHECK(n == 3000, "send of 3000 bytes (got %zd)", n);
+	for (int i = 0; i < 100 && avail < 3000; i++) {		/* wait for the echo */
+		if (ioctl(fd, FIONREAD, &avail))
+			break;
+		if (avail < 3000)
+			poll(&(struct pollfd){ .fd = fd, .events = POLLIN }, 1, 50);
+	}
+	CHECK(avail >= 3000, "the 3000-byte echo is queued (%d)", avail);
+
+	n = recv(fd, buf, sizeof(buf), 0);
+	e = errno;
+	CHECK(n == -1 && e == NQ_E_QUOTA_EXCEEDED,
+	      "recv with 3000 bytes waiting and 2000 left is refused whole, not cut (got %zd)", n);
+	n = recv(fd, buf, sizeof(buf), MSG_PEEK | MSG_DONTWAIT);
+	CHECK(n == 3000, "the refused data is still queued: a peek sees 3000 bytes (got %zd)", n);
+
+	n = recv(fd, buf, 2000, 0);
+	CHECK(n == 2000, "a recv of exactly the 2000 left works (got %zd)", n);
+	n = recv(fd, buf, 10, MSG_DONTWAIT);
+	e = errno;
+	CHECK(n == -1 && e == NQ_E_QUOTA_EXCEEDED, "recv with nothing left is refused (got %zd)", n);
+	n = recv(fd, buf, sizeof(buf), MSG_PEEK | MSG_DONTWAIT);
+	CHECK(n == 1000, "1000 bytes are still queued after the quota ran out (got %zd)", n);
+	expect_left(fd, 0, "refused receives");
+	close(fd);
+	return 0;
+}
+
 static int t_ipv6(void)
 {
 	char buf[3000];
@@ -336,6 +377,7 @@ int main(int argc, char **argv)
 		{ "splice, socket to pipe and pipe to socket", 8000, t_splice },
 		{ "MSG_PEEK", 6000, t_peek },
 		{ "non-blocking recv", 2000, t_nonblock },
+		{ "TCP receive larger than what is left", 5000, t_recv_whole },
 		{ "IPv6", 7000, t_ipv6 },
 	};
 
