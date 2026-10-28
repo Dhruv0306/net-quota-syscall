@@ -1,7 +1,7 @@
 From 3d54d828818d143a1ecf6784b61fb22281016a92 Mon Sep 17 00:00:00 2001
 From: Dhruv Rakeshbhai Patel <dpatel5469@gmail.com>
 Date: Sat, 24 Oct 2026 08:00:00 +0000
-Subject: [PATCH 2/5] fork: set up the network quota in copy_signal()
+Subject: [PATCH 2/6] fork: set up the network quota in copy_signal()
 
 Initialise the network quota of every new process. A child starts with no
 quota, no limit and no timer, whatever its parent has: the quota stays with

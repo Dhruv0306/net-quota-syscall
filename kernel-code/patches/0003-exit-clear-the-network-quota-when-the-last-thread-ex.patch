@@ -1,10 +1,12 @@
 From 8fb890cdf477230e5b5949e3c55e628d27e463e6 Mon Sep 17 00:00:00 2001
-From: "Claude (AI-assisted)" <noreply@anthropic.com>
+From: Dhruv Rakeshbhai Patel <dpatel5469@gmail.com>
 Date: Mon, 19 Oct 2026 09:46:30 +0000
-Subject: [PATCH 3/5] exit: clear the network quota when the last thread exits
+Subject: [PATCH 3/6] exit: clear the network quota when the last thread exits
 
 Stop the expiry timer and drop the quota, so that nothing outlives the
 process and a reused PID starts without a limit.
+
+Co-authored-by: Claude <noreply@anthropic.com>
 ---
  kernel/exit.c | 2 ++
  1 file changed, 2 insertions(+)

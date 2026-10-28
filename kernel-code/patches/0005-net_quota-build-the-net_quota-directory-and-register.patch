@@ -1,13 +1,15 @@
 From d98afe2f0c75391e8048e53c6ea3e6071c9b37ad Mon Sep 17 00:00:00 2001
-From: "Claude (AI-assisted)" <noreply@anthropic.com>
+From: Dhruv Rakeshbhai Patel <dpatel5469@gmail.com>
 Date: Mon, 19 Oct 2026 09:46:30 +0000
-Subject: [PATCH 5/5] net_quota: build the net_quota/ directory and register
+Subject: [PATCH 5/6] net_quota: build the net_quota/ directory and register
  syscall 472
 
 Add net_quota/ to the top-level Kbuild (in 7.2.10 the list of top-level
 directories lives there, no longer in the Makefile), add the syscall as
 number 472 on x86_64 and declare sys_net_quota in linux/syscalls.h and
 asm-generic/syscalls.h. The syscall needs CONFIG_NET.
+
+Co-authored-by: Claude <noreply@anthropic.com>
 ---
  Kbuild                                 | 1 +
  arch/x86/entry/syscalls/syscall_64.tbl | 1 +

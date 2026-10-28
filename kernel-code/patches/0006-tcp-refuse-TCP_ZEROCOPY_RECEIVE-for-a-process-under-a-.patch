@@ -1,0 +1,50 @@
+From 4b7d5305d2110f85d57f804839bedd263e2a7c16 Mon Sep 17 00:00:00 2001
+From: Dhruv Rakeshbhai Patel <dpatel5469@gmail.com>
+Date: Wed, 28 Oct 2026 03:34:11 +0000
+Subject: [PATCH 6/6] tcp: refuse TCP_ZEROCOPY_RECEIVE for a process under a
+ network quota
+
+TCP_ZEROCOPY_RECEIVE (getsockopt) takes data straight from the receive queue
+without going through sock_recvmsg(), where net_quota charges received bytes.
+On the test machine test_zerocopy read 32768 bytes this way with nothing
+charged, so a restricted process could receive without limit.
+
+Return -EOPNOTSUPP from that option when the calling process has a network
+quota. The data stays in the socket and a normal recv(), which is counted,
+reads it. Processes without a quota are not affected.
+
+Co-authored-by: Claude <noreply@anthropic.com>
+---
+ net/ipv4/tcp.c | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/net/ipv4/tcp.c b/net/ipv4/tcp.c
+index 47a34a9..0a65837 100644
+--- a/net/ipv4/tcp.c
++++ b/net/ipv4/tcp.c
+@@ -279,6 +279,7 @@
+ #include <net/ip.h>
+ #include <net/psp.h>
+ #include <net/sock.h>
++#include <net/net_quota.h>
+ #include <net/rstreason.h>
+ 
+ #include <linux/uaccess.h>
+@@ -4743,6 +4744,14 @@ int do_tcp_getsockopt(struct sock *sk, int level,
+ 		struct tcp_zerocopy_receive zc = {};
+ 		int err;
+ 
++		/*
++		 * This takes data from the receive queue without going through
++		 * sock_recvmsg(), where a network quota is charged. Refuse it
++		 * for a process that has a quota: the caller can use recv().
++		 */
++		if (net_quota_active())
++			return -EOPNOTSUPP;
++
+ 		if (copy_from_sockptr(&len, optlen, sizeof(int)))
+ 			return -EFAULT;
+ 		if (len < 0 ||
+-- 
+2.43.0
+

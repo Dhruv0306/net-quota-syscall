@@ -1,13 +1,15 @@
 From 07262104c24cfadb9f87d78a185d9981cced2eaf Mon Sep 17 00:00:00 2001
-From: "Claude (AI-assisted)" <noreply@anthropic.com>
+From: Dhruv Rakeshbhai Patel <dpatel5469@gmail.com>
 Date: Mon, 19 Oct 2026 09:46:30 +0000
-Subject: [PATCH 4/5] net: charge socket send/receive against the network quota
+Subject: [PATCH 4/6] net: charge socket send/receive against the network quota
 
 Hook the lowest common send and receive paths in net/socket.c:
 sock_sendmsg_nosec() and sock_recvmsg_nosec(), which cover send, sendto,
 sendmsg, sendmmsg, write, recv, recvfrom, recvmsg, recvmmsg, read,
 sendfile and io_uring socket operations. Receive-side splice calls the
 protocol's splice_read directly, so sock_splice_read() is hooked as well.
+
+Co-authored-by: Claude <noreply@anthropic.com>
 ---
  net/socket.c | 41 +++++++++++++++++++++++++++++++++--------
  1 file changed, 33 insertions(+), 8 deletions(-)
