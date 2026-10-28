@@ -15,9 +15,10 @@
  *    until an ancestor sets a new quota (nothing is renewed automatically);
  *  - when the limit is reached, send/recv fail with -NQ_E_QUOTA_EXCEEDED
  *    until the window ends; a send larger than what is left is refused
- *    whole with the same error (never partly done, and it costs no quota),
- *    while a receive is still shortened to what is left, see
- *    __net_quota_begin();
+ *    whole with the same error (never partly done, and it costs no quota);
+ *    a receive is judged by the data already waiting in the socket, and is
+ *    refused whole in the same way, with the data left queued (see
+ *    __net_quota_begin() for the cases where nothing is waiting yet);
  *  - only AF_INET/AF_INET6 sockets whose peer is not a loopback address
  *    are counted;
  *  - a child created by fork() does not inherit the quota: it starts with no
@@ -38,6 +39,8 @@
 #include <linux/net_quota.h>
 #include <linux/sched.h>
 #include <linux/sched/signal.h>
+#include <asm/ioctls.h>
+#include <linux/sockios.h>
 #include <linux/sched/task.h>
 #include <linux/socket.h>
 #include <linux/stddef.h>
@@ -201,6 +204,55 @@ static bool nq_socket_counts(struct socket *sock, const struct sockaddr *peer,
 	return true;
 }
 
+/*
+ * Size of the data already waiting for a receive on @sk, or 0 if nothing is
+ * waiting, the protocol is not handled here, or the protocol cannot say. For
+ * TCP it is the number of bytes queued; for UDP it is the size of the first
+ * datagram (*dgram tells which). Both come from the protocol's own SIOCINQ,
+ * which may take the socket lock: call it without holding any spinlock.
+ */
+static unsigned int nq_waiting(struct sock *sk, bool *dgram)
+{
+	int answ = 0;
+
+	switch (READ_ONCE(sk->sk_protocol)) {
+	case IPPROTO_TCP:
+		*dgram = false;
+		break;
+	case IPPROTO_UDP:
+	case IPPROTO_UDPLITE:
+		*dgram = true;
+		break;
+	default:
+		return 0;
+	}
+	if (!sk->sk_prot->ioctl || sk->sk_prot->ioctl(sk, SIOCINQ, &answ))
+		return 0;
+	return answ > 0 ? answ : 0;
+}
+
+/*
+ * Who sent the first datagram waiting on an unconnected socket? Found with a
+ * zero-length MSG_PEEK receive straight on the protocol ops (so it does not
+ * come back through the quota hooks); nothing is dequeued. Returns 1 for a
+ * loopback sender, 0 for any other, -1 if it cannot be told.
+ */
+static int nq_next_sender_is_loopback(struct socket *sock)
+{
+	struct sockaddr_storage addr;
+	struct kvec kv = { };
+	struct msghdr msg = { .msg_name = &addr, .msg_namelen = sizeof(addr) };
+	int ret;
+
+	iov_iter_kvec(&msg.msg_iter, ITER_DEST, &kv, 1, 0);
+	ret = READ_ONCE(sock->ops)->recvmsg(sock, &msg, 0,
+					    MSG_PEEK | MSG_DONTWAIT);
+	if (ret < 0 || !msg.msg_namelen)
+		return -1;
+	return nq_sockaddr_is_loopback((const struct sockaddr *)&addr,
+				       msg.msg_namelen);
+}
+
 /* ------------------------------------------------------------------ */
 /* Socket hooks                                                        */
 /* ------------------------------------------------------------------ */
@@ -221,22 +273,45 @@ static bool nq_socket_counts(struct socket *sock, const struct sockaddr *peer,
  *
  * A send larger than the remaining quota is refused whole with
  * -NQ_E_QUOTA_EXCEEDED, on every kind of socket: nothing is sent and nothing
- * is charged, so a smaller request can still succeed. A receive larger than
- * the remaining quota is shortened to it (partial transfer); how receives
- * should behave is still open, see docs/gap/.
+ * is charged, so a smaller request can still succeed.
+ *
+ * A receive is judged by the data already waiting in the socket, on TCP and
+ * UDP: for a datagram socket the size of the first datagram, for a stream
+ * the bytes this call would take (the smaller of the buffer and the bytes
+ * queued). If that is more than what is left, the receive is refused whole
+ * with -NQ_E_QUOTA_EXCEEDED, nothing is charged and the data stays queued; a
+ * receive with a smaller buffer can still succeed on a stream. When it goes
+ * ahead, it is limited to the data that was waiting. Where nothing is waiting
+ * yet (the call will block), or the socket is of another protocol, the size
+ * is not known in advance, and the receive is shortened to what is left
+ * instead: a stream keeps the rest queued, a datagram is cut and the rest of
+ * it discarded. A datagram from a loopback sender is not counted, so on an
+ * unconnected socket its sender is looked up before a datagram is refused.
  */
 int __net_quota_begin(struct socket *sock, const struct sockaddr *peer,
 		      int peerlen, size_t *len, enum net_quota_dir dir,
 		      int flags, struct net_quota_ticket *t)
 {
 	struct net_quota_info *nq = &current->signal->net_quota;
-	bool peer_unknown = false;
+	bool peer_unknown = false, dgram = false;
+	int sender_loopback = -1;
+	unsigned int waiting = 0;
 	u64 remaining;
 
 	if (flags & MSG_PEEK)
 		return 0;
 	if (!nq_socket_counts(sock, peer, peerlen, dir, &peer_unknown))
 		return 0;
+
+	/* Both lookups may sleep or take other locks: before nq->lock. */
+	if (dir == NQ_DIR_RECV && !(flags & (MSG_ERRQUEUE | MSG_OOB)))
+		waiting = nq_waiting(sock->sk, &dgram);
+	if (waiting && peer_unknown && dgram) {
+		u64 limit = READ_ONCE(nq->limit), used = READ_ONCE(nq->used);
+
+		if (waiting > limit - min(limit, used))
+			sender_loopback = nq_next_sender_is_loopback(sock);
+	}
 
 	spin_lock_bh(&nq->lock);
 	if (nq->state == NQ_STATE_NONE) {	/* revoked in the meantime */
@@ -249,7 +324,16 @@ int __net_quota_begin(struct socket *sock, const struct sockaddr *peer,
 		spin_unlock_bh(&nq->lock);
 		return -NQ_E_QUOTA_EXCEEDED;
 	}
-	if (*len > remaining) {
+	if (waiting) {
+		u64 judged = dgram ? waiting : min_t(u64, *len, waiting);
+
+		if (judged > remaining) {
+			spin_unlock_bh(&nq->lock);
+			/* Not counted: a datagram from a loopback sender. */
+			return sender_loopback == 1 ? 0 : -NQ_E_QUOTA_EXCEEDED;
+		}
+		*len = min_t(size_t, *len, waiting);
+	} else if (*len > remaining) {
 		if (dir == NQ_DIR_SEND) {
 			spin_unlock_bh(&nq->lock);
 			return -NQ_E_QUOTA_EXCEEDED;

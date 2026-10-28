@@ -13,8 +13,10 @@
  *	net_quota_end(&nqt, msg, ret);
  *
  * begin() reserves the bytes the transfer may move. A send larger than what
- * is left of the quota is refused whole; a receive is shortened to what is
- * left (partial transfer). end() gives back whatever was reserved but not
+ * is left of the quota is refused whole; so is a receive when the data already
+ * waiting is more than what is left (the data stays queued), and where the size
+ * is not known in advance it is shortened to what is left. end() gives back
+ * whatever was reserved but not
  * moved. A
  * process without a quota only pays one inlined load and branch.
  */
