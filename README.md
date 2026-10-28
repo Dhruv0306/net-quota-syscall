@@ -53,7 +53,7 @@ PASSED`, and the kernel log check printed "no new warnings or oopses".
 | `TCP_ZEROCOPY_RECEIVE` | was not counted on the first run (2026-10-27); patch 0006 refuses it with `EOPNOTSUPP` under a quota; `test_zerocopy` passed: refused, then a counted `recv()` of the same data |
 | A real program stopped at the limit (`test_realprog.sh`) | passed: `dd` stopped at exactly 20000 bytes with `EDQUOT` |
 | Debug options | the tested kernel had every option of `config/net_quota_debug.config` on (lockdep, atomic-sleep, spinlock, timer-object checks); nothing was logged |
-| Change 3, receive side | waiting for the professor's wording |
+| Change 3, receive side: judged by the data waiting, refused whole when it is more than what is left, data stays queued | compiled with `W=1`; `test_udp` and `test_calls` updated; **not yet run** |
 
 What is still open is in [docs/gap/README.md](docs/gap/README.md); the history
 and next steps are in [docs/handoff.md](docs/handoff.md).

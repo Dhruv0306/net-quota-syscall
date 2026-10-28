@@ -114,11 +114,14 @@ flowchart TD
   D -- no --> Z
   D -- yes --> F{"Bytes left?"}
   F -- none --> X["Return -EDQUOT<br/>nothing sent, nothing charged"]
-  F -- some --> G{"Request larger than what is left?"}
-  G -- no --> H["Reserve the bytes"]
-  G -- yes --> I{"Send or receive?"}
-  I -- send --> X
-  I -- receive --> J["Shorten the request to what is left<br/>then reserve it"]
+  F -- some --> G{"Send or receive?"}
+  G -- send --> S{"Larger than what is left?"}
+  S -- yes --> X
+  S -- no --> H["Reserve the bytes"]
+  G -- receive --> W{"Data waiting in the socket?<br/>TCP: bytes queued, UDP: next datagram"}
+  W -- yes, more than what is left --> X2["Return -EDQUOT<br/>data stays queued, nothing charged"]
+  W -- yes, fits --> H
+  W -- nothing waiting yet --> J["Shorten the request to what is left<br/>then reserve it"]
   H --> K["Protocol does the transfer<br/>tcp_sendmsg, udp_recvmsg and so on"]
   J --> K
   K --> L["Give back reserved bytes that were not moved"]
@@ -136,8 +139,17 @@ The same flow in words, with the data that moves:
    up front, so two threads cannot both slip past the limit.
 5. **Oversized request:** if `len` is more than what is left, a send is
    refused whole with `EDQUOT` (TCP and UDP alike): nothing is sent and
-   nothing is charged. A receive is shortened (`iov_iter_truncate`) to what
-   is left.
+   nothing is charged. A receive is judged by the data already waiting in the
+   socket (the protocol's `SIOCINQ`): for UDP the size of the next datagram, for
+   TCP the bytes this call would take (the smaller of the buffer and the bytes
+   queued). If that is more than what is left, the receive is refused whole
+   with `EDQUOT`, nothing is charged and the data stays queued. If it fits, the
+   call is limited to the data that was waiting. If nothing is waiting yet (the
+   call is about to block), the size is not known, and the request is shortened
+   (`iov_iter_truncate`) to what is left instead. On an unconnected UDP socket
+   the sender of a datagram that is about to be refused is looked up first with
+   a zero-length `MSG_PEEK`, because a datagram from a loopback sender is not
+   counted.
 6. **After the transfer:** bytes that were reserved but not moved are given
    back. A receive from a loopback sender on an unconnected socket is not
    charged.

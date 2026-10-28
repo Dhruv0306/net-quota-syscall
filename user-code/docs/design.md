@@ -39,9 +39,12 @@ No privilege is needed: being an ancestor of the target is the permission.
 - **Limit reached:** every further send/receive fails with EDQUOT until the
   window ends. A send larger than what is left is refused whole with EDQUOT on
   every kind of socket (TCP and UDP alike): nothing is sent and no quota is
-  charged, so a smaller send can still succeed. A receive larger than what is
-  left is still shortened to it (partial transfer); the receive rule is open,
-  see `docs/gap/`.
+  charged, so a smaller send can still succeed. A receive is judged by the data
+  already waiting in the socket (UDP: the next datagram; TCP: the bytes this
+  call would take, the smaller of the buffer and the bytes queued); if that is
+  more than what is left, the receive is refused whole with EDQUOT, nothing is
+  charged and the data stays queued. If nothing is waiting yet, the size is not
+  known and the receive is shortened to what is left instead (limitation 14).
 - **Existing quota:** never overwritten. The call fails with EEXIST and
   changes nothing, including the counter and the timer. An expired quota is
   gone, so a new one can be set.
@@ -67,7 +70,7 @@ professor's changes were applied later, in this order.
 | The timer starts when the limit is set, not at the first use | professor, change 1 | in `main`; passed on the test machine |
 | A child created by `fork()` does not inherit the quota | professor, change 2 | in `main`; passed on the test machine |
 | A send larger than what is left is refused whole, nothing is charged, error stays `EDQUOT` | professor, change 3 (decided 2026-10-23) | in `main`; passed on the test machine |
-| A receive larger than what is left | professor, change 3, wording pending | **open**: receives are still shortened, see `docs/gap/` |
+| A receive is judged by the data waiting (UDP: next datagram, TCP: what this call would take); more than what is left refuses the whole receive and leaves the data queued | professor, change 3, clarified 2026-10-28 | in `main`; compiled, not yet run on the real kernel (`test_udp`, `test_calls`) |
 | `TCP_ZEROCOPY_RECEIVE` fails with `EOPNOTSUPP` for a process under a quota | project owner, 2026-10-28 (after the test found it uncounted) | patch 0006; passed on the test machine (2026-10-28) |
 | A zero-length send with nothing left returns `EDQUOT` | project owner, 2026-10-28 | in `main` (intended) |
 
@@ -94,8 +97,9 @@ The list of open gaps is `docs/gap/README.md`.
 
 ## Known limitations
 
-1. **A restricted process can escape its limit by forking.** The child starts
-   with no quota, so a program that forks and does its network traffic in the
+1. **A restricted process can escape its limit by forking** (intended: the
+   professor confirmed on 2026-10-28 that a child starts unrestricted). The
+   child starts with no quota, so a program that forks and does its network traffic in the
    child, or in several children, is not limited at all. Only an ancestor that
    knows the child's pid can restrict it, with a call of its own. This follows
    from the rule that children start unrestricted.
@@ -136,7 +140,7 @@ The list of open gaps is `docs/gap/README.md`.
    a Unix socket, or one inherited by a child, which starts unrestricted), and
    that process's traffic is not counted. This is the same class of escape as
    limitation 1.
-10. **A send that does not fit is refused, not cut** (change 3). A TCP stream
+10. **A send or receive that does not fit is refused, not cut** (change 3). A TCP stream
     can therefore be left with a few bytes it cannot use, until the timer
     expires. `EDQUOT` does not tell the caller whether the request was too big
     or the quota is used up; this is intended.
@@ -151,3 +155,21 @@ The list of open gaps is `docs/gap/README.md`.
     process is a shell or wrapper that runs the real program as a child, the
     child is unrestricted (limitation 1). Use `exec` inside the shell or start
     the program directly. `test_realprog.sh` checks both forms.
+14. **Receives, where the size is not known in advance.** The receive rule needs
+    the size of the data already waiting. It is not known when nothing is
+    waiting yet (the call will block, or return `EAGAIN`), for a socket of
+    another protocol than TCP or UDP (SCTP, MPTCP, raw), or for a call with
+    `MSG_ERRQUEUE` or `MSG_OOB`. In those cases the receive is shortened to what
+    is left, as before: a TCP stream keeps the rest queued, a datagram is cut
+    short and the rest of it is discarded.
+15. **A refused receive can block the queue.** The data stays queued, so a
+    datagram that is larger than what is left stays at the head of a UDP queue
+    and every later receive is refused too, until the timer ends. On TCP a
+    smaller buffer still succeeds, so the stream can be read to the last byte.
+    A program that reads TCP with a large buffer gets `EDQUOT` as soon as that
+    buffer is larger than what is left, as with sends.
+16. The data waiting is looked up just before the receive, and more can arrive
+    or another thread can take it in between. The call is limited to the data
+    that was waiting, so the quota is never exceeded, but the judgement can
+    be slightly out of date. The lookup takes the socket lock briefly, on every
+    counted receive of a process under a quota.

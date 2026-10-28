@@ -41,7 +41,7 @@ rather than from the original assignment text, it says so.
 | What is counted | payload bytes, sent and received, on one combined counter; only IPv4/IPv6 sockets whose peer is not a loopback address (`127.x`, `::1`); Unix sockets and `MSG_PEEK` are not counted |
 | Which calls | everything that goes through the socket layer: send, sendto, sendmsg, sendmmsg, write, recv, read, sendfile, splice, io_uring socket operations. `TCP_ZEROCOPY_RECEIVE` bypasses that layer, so it fails with `EOPNOTSUPP` for a process under a quota (patch 0006) |
 | Limit reached | send and receive fail with `EDQUOT` until the period ends |
-| Oversized request | **a send larger than what is left is refused whole with `EDQUOT`, on TCP and UDP alike; nothing is sent and nothing is charged** (professor's third change). A receive larger than what is left is still shortened to it: the receive rule is waiting for the professor's wording |
+| Oversized request | **a send larger than what is left is refused whole with `EDQUOT`, on TCP and UDP alike; nothing is sent and nothing is charged** (professor's third change). A receive is judged by the data already waiting (UDP: next datagram, TCP: what this call would take): if that is more than what is left, the receive is refused whole with `EDQUOT` and the data stays queued; when nothing is waiting yet the receive is cut to what is left (professor's clarification of 2026-10-28) |
 | Timer | **starts when the limit is set** (professor's change; before, it started at the first network use) and revokes the quota when the period ends. Nothing is renewed automatically; an ancestor can set a new quota afterwards. A quota that is never used expires too |
 | Existing quota | never overwritten: the call fails with `EEXIST` and changes nothing |
 | fork() | **a child does not inherit the quota** and starts unrestricted (professor's change; before, the child got its own copy). Threads share the parent's quota |
@@ -127,12 +127,13 @@ enabled".
 | io_uring send, receive, zero-copy send, oversized send | yes | **yes: `test_uring` passed**; the oversized send came back as `-122` (`EDQUOT`) |
 | `TCP_ZEROCOPY_RECEIVE` (patch 0006) | yes, `W=1`, no warnings (7.2.12) | **yes: `test_zerocopy` passed**: refused with `EOPNOTSUPP`, the 32768 bytes stayed queued, and a normal `recv()` took them and was counted (4464 of 70000 left). On the first run, before the patch, the data was read without being charged |
 | A real program stopped at the limit (`test_realprog.sh`) | yes | **yes:** dd stopped at exactly 20000 bytes with `Disk quota exceeded`, exit status 1; dd run as a child of the restricted shell was not limited, as designed |
-| A receive larger than what is left | not changed | waiting for the professor's wording |
+| A receive is judged by the data waiting: refused whole when it is more than what is left, data stays queued (`net_quota.c` only) | yes, `W=1`, no warnings (7.2.12) | **not yet run**: `test_udp` and the new TCP case of `test_calls` expect it. The new socket lookup in the receive hook has not been through lockdep yet |
 
-Nothing from the test plan is left to run. Still without a test: io_uring
+Still to run: the receive rule (row above): `net_quota.c` changed after the
+third run, so the kernel needs a rebuild with the new file (no new patch) and
+`test_udp` and `test_calls` need another run. Still without a test: io_uring
 multishot receive with provided buffers, and io_uring zero-copy receive (needs a
-network card with header/data split, cannot run on a veth pair). What is open
-is waiting on the professor (section 8, items 1 and 7).
+network card with header/data split, cannot run on a veth pair).
 
 ## 5. The machine and the workflow
 
@@ -192,7 +193,7 @@ The tests, and what each one proves:
 | `test_timer` | the window starts when the limit is set, even for a process that uses the network late or never |
 | `test_loopback` | loopback and Unix-socket traffic is not counted and costs no quota |
 | `test_exit` | quotas disappear with their process in every state; a new process starts unrestricted |
-| `test_udp` | datagrams are refused whole, a refusal costs nothing, receives are still cut (this changes if the receive rule changes) |
+| `test_udp` | datagrams are refused whole on send and on receive (judged by the waiting datagram, whatever the buffer), a refusal costs nothing, the datagram stays queued |
 | `test_threads` | four threads share one quota with no byte lost or gained (28 whole 700-byte blocks = 19600 of 20000), and a thread id is rejected |
 | `test_calls` | each of `sendmsg`/`recvmsg`, `sendmmsg`/`recvmmsg`, `sendfile` (also one larger than the quota), `splice` both ways, `MSG_PEEK` (not counted, not refused at the limit), non-blocking `recv` (EAGAIN costs nothing) and IPv6 is counted exactly: after each, a probe checks that exactly the expected bytes are left |
 | `test_uring` | io_uring send, receive, zero-copy send, and an oversized send refused whole are counted exactly; skips with a message if io_uring is off |
@@ -214,11 +215,13 @@ The answers behind the rules in section 2, as the project owner gave them:
 - A send that does not fit in what is left is refused whole (professor's third
   change; it replaced the earlier "allowed up to the limit"). It costs no
   quota, the error stays `EDQUOT`, multi-part calls keep working part by part,
-  and the leftover bytes simply stay unused until the timer ends. The receive
-  rule is still open; the earlier rule (shorten to what is left) stays until
-  the professor's wording is recorded.
+  and the leftover bytes simply stay unused until the timer ends. A receive is
+  judged by the data already waiting in the socket and refused whole the same
+  way, leaving the data queued (clarified by the professor on 2026-10-28; where
+  the size is not known in advance the receive is still cut, see `design.md`
+  limitation 14).
 - Time is given in seconds and converted to jiffies; a kernel timer does the
-  expiry; expiry is for good.
+  expiry; nothing is renewed automatically.
 - Never overwrite a quota that is set; return an error instead (an earlier idea
   of asking for confirmation was dropped).
 - Loopback and Unix sockets are not counted; the test server therefore listens
@@ -240,9 +243,9 @@ owner's request.
 1. **A restricted process can escape its limit by forking.** The child starts
    with no quota, so a program that forks and does its network traffic in the
    child is not limited. Only an ancestor that knows the child's pid can
-   restrict it. Alternatives, none built: let the child inherit its own copy
-   (the previous behaviour, which still lets forking multiply the limit), or
-   let parent and children share one counter, which closes the hole.
+   restrict it. The professor confirmed on 2026-10-28 that this is intended, so
+   the alternatives (a child that inherits its own copy, or a counter shared
+   by parent and children) are not planned.
 2. The debug options: every option of the debug fragment was on during the
    hardware runs and found nothing (section 4).
 3. Loopback is decided by the destination address, not the interface, so
@@ -255,7 +258,9 @@ owner's request.
 6. Descendants whose parent has died are reparented and can no longer be
    restricted (accepted); accounting is by calling process, so a socket handed
    to an unrestricted process escapes it, like the fork hole.
-7. The receive rule of the third change is open (section 7).
+7. Receives are judged by the data already waiting; where the size is not known
+   in advance they are still cut to what is left (`design.md` limitations 14
+   to 16).
 8. A zero-length send with nothing left returns `EDQUOT` (decided: intended).
 9. The full list, with an action for each item, is `docs/gap/README.md`.
 
@@ -286,10 +291,10 @@ owner's request.
 
 ## 10. Suggested next steps
 
-1. Get the professor's wording for the receive side of the third change, and
-   record it in `docs/gap/professor-change-3-drop-oversized-request.md`. Then
-   implement it (and update `test_udp`, which checks that a receive is cut).
-2. Decide what to do about the fork hole (section 8, item 1), ideally with the
-   professor. The `test_realprog.sh` result is a real-world example of it.
-3. Optional: tests for io_uring multishot receive and io_uring zero-copy
+1. Pull `main`, copy `kernel-code/new-files/` onto the kernel tree (only
+   `net_quota.c` changed, no new patch), rebuild and reboot, then rerun
+   `sudo ./tests/run_tests.sh`. Watch `test_udp` and the TCP receive case of
+   `test_calls`, and `dmesg` for lockdep: the receive hook now calls the
+   protocol's `SIOCINQ`, which takes the socket lock.
+2. Optional: tests for io_uring multishot receive and io_uring zero-copy
    receive (section 4), or leave them documented as untested.

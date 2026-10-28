@@ -8,14 +8,13 @@ Kinds: **behaviour** (what the system does), **proof** (a claim not yet
 tested), **doc** (a document is wrong or missing), **process** (how the work is
 done).
 
-Last reviewed: 2026-10-28, after the third hardware run (all tests passed, patch 0006 in).
+Last reviewed: 2026-10-28, after the professor's answers on G1 and G2.
 
 ## Open
 
 | ID | Kind | Gap | Next action | Needs |
 |---|---|---|---|---|
-| G1 | behaviour | The receive side of professor change 3 ("drop the entire receiving packet") is not decided: how the size is judged and whether dropped data stays queued or is discarded. Receives are still shortened. | Record the professor's wording in [professor-change-3-drop-oversized-request.md](professor-change-3-drop-oversized-request.md), then implement it and update `test_udp` | the professor's clarification |
-| G2 | behaviour | A restricted process escapes its limit by forking: the child starts unrestricted (change 2). A real example from the 2026-10-27 run: `nq_run ... bash -c 'dd ...'` left dd unlimited because bash forks it. A socket handed to an unrestricted process escapes the same way. | Decide whether this is the intended rule. If not, the options are in `handoff.md` section 8 (a shared counter closes the fork case, not the descriptor-passing case) | the professor |
+| G12 | proof | The receive rule (judged by the data waiting, refused whole, data stays queued) is compiled with `W=1` but has not run on the real kernel. It adds a lookup of the protocol's `SIOCINQ`, which takes the socket lock, to every counted receive of a process under a quota, so lockdep has not seen it either. | Copy `kernel-code/new-files/` onto the tree, rebuild, rerun `run_tests.sh`; watch `test_udp`, the TCP receive case of `test_calls`, and `dmesg` | the test machine |
 
 ## Closed in the 2026-10-23 review
 
@@ -43,3 +42,5 @@ Last reviewed: 2026-10-28, after the third hardware run (all tests passed, patch
 | D20 | IPv6 had never run (was G3): the test machine has no IPv6 address | the runner gives the loopback interface `fd00:6e71::1` for the run; the IPv6 case of `test_calls` passed on 2026-10-28 |
 | D21 | Only two of the five debug options were confirmed (was G4) | the tested kernel has all five on (`PROVE_LOCKING`, `DEBUG_ATOMIC_SLEEP`, `DEBUG_SPINLOCK`, `DEBUG_OBJECTS`, `DEBUG_OBJECTS_TIMERS`); the runs found nothing |
 | D22 | Patch 0006 and the changed tests had not run | the third run (2026-10-28) passed: `test_zerocopy` (refusal, then a counted `recv()`), the zero-length check in `test_calls`, and the rest |
+| D23 | The receive side of change 3 was open (was G1) | professor's answers of 2026-10-28: judge by the data waiting, keep it queued, apply to TCP where possible. Implemented in `net_quota.c`; limits written down in `design.md` 14 to 16. Run pending (G12) |
+| D24 | Is escaping the limit by forking intended? (was G2) | the professor confirmed on 2026-10-28: yes, a child starts unrestricted. `design.md` limitation 1 says so |

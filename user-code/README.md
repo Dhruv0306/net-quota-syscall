@@ -21,9 +21,9 @@ user-code/
 │   ├── test_loopback.c     loopback and AF_UNIX are not counted
 │   ├── test_realprog.sh    dd started with nq_run (exec'd by the shell) is stopped by the quota; as a forked child it is not
 │   ├── test_exit.c         quotas vanish with their process in every state
-│   ├── test_udp.c          datagrams are refused whole, receives are cut
+│   ├── test_udp.c          datagrams are refused whole on send and receive, and stay queued
 │   ├── test_threads.c      four threads share one quota: 28 whole 700-byte blocks, no byte lost
-│   ├── test_calls.c        sendmsg/recvmsg, sendmmsg/recvmmsg, sendfile, splice, MSG_PEEK, non-blocking, IPv6
+│   ├── test_calls.c        sendmsg/recvmsg, sendmmsg/recvmmsg, sendfile, splice, MSG_PEEK, non-blocking, TCP receive refused whole, IPv6
 │   ├── test_uring.c        io_uring send, receive, zero-copy send, oversized send
 │   ├── test_zerocopy.c     reports whether TCP_ZEROCOPY_RECEIVE is counted (a finding, not pass/fail)
 │   ├── test_common.[ch]    shared helpers: run a process under a quota, probe what is left
