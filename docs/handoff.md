@@ -103,34 +103,36 @@ requires.
 
 ## 4. Status: what is proven and what is not
 
-Run on the test machine on 2026-10-27, on a kernel built from `main`, with
-`sudo ./tests/run_tests.sh`. The second run ended with `ALL TESTS PASSED`
-(11 programs and the realprog script; `test_zerocopy` reported a finding, see
-below). That kernel was built from patches 0001 to 0005 and the new files. The kernel log check printed "no new warnings or
-oopses", and `dmesg | grep -E 'BUG:|WARNING:|Oops|lockdep|net_quota'` showed
-only the line "RCU lockdep checking is enabled" printed at boot. The kernel
-had `CONFIG_PROVE_LOCKING=y` and `CONFIG_DEBUG_ATOMIC_SLEEP=y`, so lockdep and
-atomic-sleep checks ran during the tests and found nothing.
+Third run on the test machine on 2026-10-28, with a kernel built from patches
+0001 to 0006 and the new files: `./tests/run_tests.sh | tee test_run.log`, as
+root, ended with `ALL TESTS PASSED` and "kernel log: no new warnings or
+oopses". (Earlier runs: 2026-10-27, first run with a test bug in
+`test_realprog.sh` and the finding that `TCP_ZEROCOPY_RECEIVE` was not counted;
+second run all passed.) `test_run.log` is ignored by git (`*.log`).
+
+The tested kernel had every option of `config/net_quota_debug.config` on
+(`PROVE_LOCKING`, `DEBUG_ATOMIC_SLEEP`, `DEBUG_SPINLOCK`, `DEBUG_OBJECTS`,
+`DEBUG_OBJECTS_TIMERS`), so lockdep, atomic-sleep, spinlock and timer-object
+checks ran during all tests. `dmesg | grep -E 'BUG:|WARNING:|Oops|lockdep|net_quota'`
+after the 2026-10-27 runs showed only the boot line "RCU lockdep checking is
+enabled".
 
 | Change | Compiled | Run on the real kernel |
 |---|---|---|
-| Everything up to the professor's changes | yes | yes: passed (earlier run) |
+| Everything up to the professor's changes | yes | yes: passed |
 | Timer starts when the limit is set (`net_quota.c`) | yes, `W=1`, no warnings | **yes: `test_timer` passed** |
-| A child does not inherit the quota (patch 0002, `test_fork`) | yes | **yes: `test_fork` passed** |
+| A child does not inherit the quota (patch 0002) | yes | **yes: `test_fork` passed** |
 | A send larger than what is left is refused whole (`net_quota.c`) | yes | **yes: `test_basic`, `test_udp`, `test_threads` passed** (threads: 19600 of 20000, every thread ended with `EDQUOT`) |
-| `sendmsg`/`recvmsg`, `sendmmsg`/`recvmmsg`, `sendfile` (also oversized), `splice` both ways, `MSG_PEEK`, non-blocking `recv` | yes | **yes: `test_calls` passed**, each path counted exactly. The IPv6 case was skipped (no IPv6 server) |
+| `sendmsg`/`recvmsg`, `sendmmsg`/`recvmmsg`, `sendfile` (also oversized), `splice` both ways, `MSG_PEEK`, non-blocking `recv`, zero-length send, IPv6 | yes | **yes: `test_calls` passed**, each path counted exactly. IPv6 ran on a private address (`fd00:6e71::1`) that the runner gives the loopback interface |
 | io_uring send, receive, zero-copy send, oversized send | yes | **yes: `test_uring` passed**; the oversized send came back as `-122` (`EDQUOT`) |
-| `TCP_ZEROCOPY_RECEIVE` | yes, `W=1`, no warnings (patch 0006, 7.2.12) | **first run: NOT counted** (32768 bytes read through the copy buffer, nothing charged; gap G11). **Fixed by patch 0006, rerun pending:** the updated `test_zerocopy` expects `EOPNOTSUPP` and then a counted `recv()` |
-| A real program stopped at the limit (`test_realprog.sh`) | yes | **yes, on the rerun:** dd stopped at exactly 20000 bytes with `Disk quota exceeded`, exit status 1; dd run as a child of the restricted shell was not limited, as designed. (The first run failed because the test ran dd as a forked child; fixed by `exec`.) |
+| `TCP_ZEROCOPY_RECEIVE` (patch 0006) | yes, `W=1`, no warnings (7.2.12) | **yes: `test_zerocopy` passed**: refused with `EOPNOTSUPP`, the 32768 bytes stayed queued, and a normal `recv()` took them and was counted (4464 of 70000 left). On the first run, before the patch, the data was read without being charged |
+| A real program stopped at the limit (`test_realprog.sh`) | yes | **yes:** dd stopped at exactly 20000 bytes with `Disk quota exceeded`, exit status 1; dd run as a child of the restricted shell was not limited, as designed |
 | A receive larger than what is left | not changed | waiting for the professor's wording |
 
-Not done yet: the IPv6 case of `test_calls` (skipped on both runs: it needs
-`SERVER_IP6` or a global IPv6 address on the test machine); and a build with
-`config/net_quota_debug.config` (lockdep, sleeping-in-atomic checks). The boot
-line "RCU lockdep checking is enabled" suggests lockdep may already be on in the
-kernel that was tested; check with
-`grep -E 'PROVE_LOCKING|DEBUG_ATOMIC_SLEEP' /boot/config-$(uname -r)` before
-counting this run as the debug run.
+Nothing from the test plan is left to run. Still without a test: io_uring
+multishot receive with provided buffers, and io_uring zero-copy receive (needs a
+network card with header/data split, cannot run on a veth pair). What is open
+is waiting on the professor (section 8, items 1 and 7).
 
 ## 5. The machine and the workflow
 
@@ -241,17 +243,15 @@ owner's request.
    restrict it. Alternatives, none built: let the child inherit its own copy
    (the previous behaviour, which still lets forking multiply the limit), or
    let parent and children share one counter, which closes the hole.
-2. The debug options: lockdep and atomic-sleep checks were on during the
-   hardware run and found nothing; the other three options of the debug fragment
-   are unconfirmed (section 4).
+2. The debug options: every option of the debug fragment was on during the
+   hardware runs and found nothing (section 4).
 3. Loopback is decided by the destination address, not the interface, so
    traffic to the machine's own non-loopback address is counted.
 4. x86_64 only, needs `CONFIG_NET`, maximum period 7 days.
-5. Call paths: `test_calls` and `test_uring` passed on the real kernel, so
-   those paths are counted. `TCP_ZEROCOPY_RECEIVE` was not counted; patch 0006
-   refuses it under a quota (rerun pending). Still without a test: io_uring
-   multishot receive with provided buffers, and io_uring zero-copy receive
-   (needs a network card with header/data split, cannot run on a veth pair).
+5. Call paths: all of them pass on the real kernel. `TCP_ZEROCOPY_RECEIVE` is
+   refused under a quota (patch 0006). Still without a test: io_uring multishot
+   receive with provided buffers, and io_uring zero-copy receive (needs a
+   network card with header/data split, cannot run on a veth pair).
 6. Descendants whose parent has died are reparented and can no longer be
    restricted (accepted); accounting is by calling process, so a socket handed
    to an unrestricted process escapes it, like the fork hole.
@@ -286,14 +286,10 @@ owner's request.
 
 ## 10. Suggested next steps
 
-1. Pull `main`, rebuild the kernel with patch 0006 (setup-and-build.md, "Update
-   an existing build") and `user-code`, and rerun `sudo ./tests/run_tests.sh`.
-   `test_zerocopy` should now print `PASSED`. Watch also the new zero-length
-   check in `test_calls` and the IPv6 case.
-2. Get the professor's wording for the receive side of the third change, and
+1. Get the professor's wording for the receive side of the third change, and
    record it in `docs/gap/professor-change-3-drop-oversized-request.md`. Then
-   implement it.
-3. Decide what to do about the fork hole (section 8, item 1), ideally with the
+   implement it (and update `test_udp`, which checks that a receive is cut).
+2. Decide what to do about the fork hole (section 8, item 1), ideally with the
    professor. The `test_realprog.sh` result is a real-world example of it.
-4. Confirm the remaining debug options (section 4) or build once with
-   `config/net_quota_debug.config` and rerun.
+3. Optional: tests for io_uring multishot receive and io_uring zero-copy
+   receive (section 4), or leave them documented as untested.

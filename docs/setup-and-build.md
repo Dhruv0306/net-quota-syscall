@@ -281,6 +281,7 @@ make
 ./build/nq_cli 1 1000 5                   # "Process 1 is not a descendant ..." = the syscall answers
 ./build/nq_demo                           # direct call returns 0, wrapper call says already set
 sudo ./tests/run_tests.sh                 # about a minute; ends with: ALL TESTS PASSED
+                                          # (it gives lo a private IPv6 address, fd00:6e71::1, for the IPv6 case and removes it again)
 sudo dmesg | grep -E 'BUG:|WARNING:|Oops|lockdep|net_quota'    # prints nothing
 ```
 

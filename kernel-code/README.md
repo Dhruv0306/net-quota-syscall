@@ -37,17 +37,13 @@ version.
 
 The six patches apply cleanly on a pristine v7.2.10 and v7.2.12: a dry run of
 each, then all applied in order (each edits different files, so each also works
-alone). On 2026-10-27 a kernel built from patches 0001 to 0005 and the new files
-was booted on the test machine, and every test in `user-code/tests` passed with
-no new warnings in the kernel log. That kernel had `CONFIG_PROVE_LOCKING` and
-`CONFIG_DEBUG_ATOMIC_SLEEP` on, so lockdep and atomic-sleep checks ran during
-the tests; `CONFIG_DEBUG_SPINLOCK` and `CONFIG_DEBUG_OBJECTS_TIMERS` of the
-debug fragment have not been confirmed.
-
-Patch 0006 (refuse `TCP_ZEROCOPY_RECEIVE` under a quota) compiles with `W=1`
-without warnings on v7.2.12 but has **not** run yet: the first run found that
-data read that way was not counted. The updated `test_zerocopy` is its test.
-Everything below that says 7.2.10 holds for any 7.2.x: the build is then named
+alone). A kernel built from all six and the new files was booted on the test
+machine on 2026-10-28 and every test in `user-code/tests` passed, with no new
+warnings in the kernel log. That kernel had every option of
+`config/net_quota_debug.config` on (lockdep, atomic-sleep, spinlock and
+timer-object checks), so those ran during the tests too. Patch 0006 (refuse
+`TCP_ZEROCOPY_RECEIVE` under a quota) is proven by `test_zerocopy`. Everything
+below that says 7.2.10 holds for any 7.2.x: the build is then named
 `7.2.x-netquota`. The receive side of professor change 3 waits for the
 professor's wording.
 

@@ -64,11 +64,11 @@ professor's changes were applied later, in this order.
 | Only descendants can be restricted, no privilege needed | assignment text | in `main` |
 | A quota that is set is never overwritten (`EEXIST`) | original design | in `main` |
 | Loopback and Unix sockets are not counted | original design | in `main` |
-| The timer starts when the limit is set, not at the first use | professor, change 1 | in `main`; not yet run on the real kernel |
-| A child created by `fork()` does not inherit the quota | professor, change 2 | in `main`; not yet run on the real kernel |
-| A send larger than what is left is refused whole, nothing is charged, error stays `EDQUOT` | professor, change 3 (decided 2026-10-23) | in `main`; not yet run on the real kernel |
+| The timer starts when the limit is set, not at the first use | professor, change 1 | in `main`; passed on the test machine |
+| A child created by `fork()` does not inherit the quota | professor, change 2 | in `main`; passed on the test machine |
+| A send larger than what is left is refused whole, nothing is charged, error stays `EDQUOT` | professor, change 3 (decided 2026-10-23) | in `main`; passed on the test machine |
 | A receive larger than what is left | professor, change 3, wording pending | **open**: receives are still shortened, see `docs/gap/` |
-| `TCP_ZEROCOPY_RECEIVE` fails with `EOPNOTSUPP` for a process under a quota | project owner, 2026-10-28 (after the test found it uncounted) | patch 0006; compiled, not yet run on the real kernel |
+| `TCP_ZEROCOPY_RECEIVE` fails with `EOPNOTSUPP` for a process under a quota | project owner, 2026-10-28 (after the test found it uncounted) | patch 0006; passed on the test machine (2026-10-28) |
 | A zero-length send with nothing left returns `EDQUOT` | project owner, 2026-10-28 | in `main` (intended) |
 
 The full text of change 3, the answers given to the five questions it raised,
@@ -110,24 +110,27 @@ The list of open gaps is `docs/gap/README.md`.
 5. io_uring multishot receive (provided buffers) and io_uring zero-copy receive
    have no test: the first needs more set-up than `test_uring` does, the second
    needs a network card with header/data split.
-6. Tested on one machine only (Ubuntu 24.04, x86_64, kernel 7.2.10 from
-   `make defconfig`), and not with the lockdep and atomic-sleep checks of
-   `config/net_quota_debug.config`.
+6. Tested on one machine only (Ubuntu 24.04, x86_64, kernel 7.2.x). That kernel
+   had every option of `config/net_quota_debug.config` on (`PROVE_LOCKING`,
+   `DEBUG_ATOMIC_SLEEP`, `DEBUG_SPINLOCK`, `DEBUG_OBJECTS`,
+   `DEBUG_OBJECTS_TIMERS`), so lockdep, atomic-sleep, spinlock and timer-object
+   checks ran during the tests and logged nothing.
 7. **Orphans** (accepted by the project owner, 2026-10-28): the descendant
    check is made when the limit is set. If an intermediate process has died,
    its children have been reparented to init or a subreaper and are no longer
    descendants of the original caller, so they cannot be restricted. A quota
    that is already set is not affected.
 8. **Traffic that is not counted.** By design, only IPv4/IPv6 sockets are
-   counted. **`TCP_ZEROCOPY_RECEIVE`** through `getsockopt()` takes data
-   straight from the receive queue, bypasses the hooks, and is **not counted**:
-   `test_zerocopy` read 32768 bytes this way on the real kernel (2026-10-27)
-   without being charged. Only a program that asks for it does this, but one
-   that does can receive without limit. The other call paths (`sendmsg`,
-   `sendmmsg`, `sendfile`, `splice`, io_uring send/receive and zero-copy send,
-   `MSG_PEEK`, non-blocking calls) are counted exactly, as `test_calls` and
-   `test_uring` show on the same run. IPv6 is covered by a test but that case
-   has not run yet.
+   counted. `TCP_ZEROCOPY_RECEIVE` through `getsockopt()` takes data straight
+   from the receive queue and bypassed the hooks: on the first hardware run
+   (2026-10-27) `test_zerocopy` read 32768 bytes this way without being charged.
+   Patch 0006 now makes that option fail with `EOPNOTSUPP` for a process that
+   has a quota; the data stays in the socket and a normal `recv()`, which is
+   counted, reads it. `test_zerocopy` confirmed this on 2026-10-28, together
+   with the other call paths (`sendmsg`, `sendmmsg`, `sendfile`, `splice`,
+   io_uring send/receive and zero-copy send, `MSG_PEEK`, non-blocking calls,
+   IPv6), all counted exactly. Processes without a quota can still use
+   `TCP_ZEROCOPY_RECEIVE`.
 9. **Accounting is by the calling process, not by the socket.** A restricted
    process can hand a socket to an unrestricted process (a descriptor sent over
    a Unix socket, or one inherited by a child, which starts unrestricted), and
