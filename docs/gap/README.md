@@ -8,13 +8,13 @@ Kinds: **behaviour** (what the system does), **proof** (a claim not yet
 tested), **doc** (a document is wrong or missing), **process** (how the work is
 done).
 
-Last reviewed: 2026-10-28, after the professor's answers on G1 and G2.
+Last reviewed: after the fourth hardware run (receive rule passed; one test race found and fixed).
 
 ## Open
 
 | ID | Kind | Gap | Next action | Needs |
 |---|---|---|---|---|
-| G12 | proof | The receive rule (judged by the data waiting, refused whole, data stays queued) is compiled with `W=1` but has not run on the real kernel. It adds a lookup of the protocol's `SIOCINQ`, which takes the socket lock, to every counted receive of a process under a quota, so lockdep has not seen it either. | Copy `kernel-code/new-files/` onto the tree, rebuild, rerun `run_tests.sh`; watch `test_udp`, the TCP receive case of `test_calls`, and `dmesg` | the test machine |
+| G13 | proof | `test_zerocopy` failed on the fourth run in its own wait for the echo ("12288 echoed bytes are queued"): `poll()` returns at once while data is queued, so the loop spun through its attempts. The checks after it (refusal, counted `recv()`) passed. Fixed with a sleeping `tc_wait_queued()` helper, also used in `test_calls`; not rerun yet. | Pull, `make` in `user-code`, rerun `run_tests.sh` (no kernel rebuild) | the test machine |
 
 ## Closed in the 2026-10-23 review
 
@@ -44,3 +44,4 @@ Last reviewed: 2026-10-28, after the professor's answers on G1 and G2.
 | D22 | Patch 0006 and the changed tests had not run | the third run (2026-10-28) passed: `test_zerocopy` (refusal, then a counted `recv()`), the zero-length check in `test_calls`, and the rest |
 | D23 | The receive side of change 3 was open (was G1) | professor's answers of 2026-10-28: judge by the data waiting, keep it queued, apply to TCP where possible. Implemented in `net_quota.c`; limits written down in `design.md` 14 to 16. Run pending (G12) |
 | D24 | Is escaping the limit by forking intended? (was G2) | the professor confirmed on 2026-10-28: yes, a child starts unrestricted. `design.md` limitation 1 says so |
+| D25 | The receive rule had not run on the real kernel (was G12) | fourth run: `test_udp` and the TCP case of `test_calls` passed, `SIOCINQ` lookup and the unconnected-UDP sender lookup included; lockdep on, kernel log clean |

@@ -70,7 +70,7 @@ professor's changes were applied later, in this order.
 | The timer starts when the limit is set, not at the first use | professor, change 1 | in `main`; passed on the test machine |
 | A child created by `fork()` does not inherit the quota | professor, change 2 | in `main`; passed on the test machine |
 | A send larger than what is left is refused whole, nothing is charged, error stays `EDQUOT` | professor, change 3 (decided 2026-10-23) | in `main`; passed on the test machine |
-| A receive is judged by the data waiting (UDP: next datagram, TCP: what this call would take); more than what is left refuses the whole receive and leaves the data queued | professor, change 3, clarified 2026-10-28 | in `main`; compiled, not yet run on the real kernel (`test_udp`, `test_calls`) |
+| A receive is judged by the data waiting (UDP: next datagram, TCP: what this call would take); more than what is left refuses the whole receive and leaves the data queued | professor, change 3, clarified 2026-10-28 | in `main`; passed on the test machine (`test_udp`, `test_calls`) |
 | `TCP_ZEROCOPY_RECEIVE` fails with `EOPNOTSUPP` for a process under a quota | project owner, 2026-10-28 (after the test found it uncounted) | patch 0006; passed on the test machine (2026-10-28) |
 | A zero-length send with nothing left returns `EDQUOT` | project owner, 2026-10-28 | in `main` (intended) |
 

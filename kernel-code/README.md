@@ -45,8 +45,8 @@ timer-object checks), so those ran during the tests too. Patch 0006 (refuse
 `TCP_ZEROCOPY_RECEIVE` under a quota) is proven by `test_zerocopy`. Everything
 below that says 7.2.10 holds for any 7.2.x: the build is then named
 `7.2.x-netquota`. The receive side of professor change 3 (judged by the data
-waiting; `net_quota.c` only, no new patch) compiles with `W=1` on v7.2.12 and
-has not run yet.
+waiting; `net_quota.c` only, no new patch) passed `test_udp` and the TCP receive
+case of `test_calls` on the test machine, with lockdep on and a clean kernel log.
 
 Until 2026-10-24 there were seven patches, and three of them (0002, 0006,
 0007) edited `kernel/fork.c` one on top of the other, so a dry run of the whole

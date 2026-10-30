@@ -42,7 +42,9 @@ sudo ./tests/run_tests.sh
 
 Third run on the test machine on 2026-10-28, with a kernel built from patches
 0001 to 0006 and the new files (`./tests/run_tests.sh`, as root): `ALL TESTS
-PASSED`, and the kernel log check printed "no new warnings or oopses".
+PASSED`, and the kernel log check printed "no new warnings or oopses". The
+fourth run, with the receive rule built in, passed everything except one wait
+loop in `test_zerocopy` (below).
 
 | What | Result |
 |---|---|
@@ -50,10 +52,10 @@ PASSED`, and the kernel log check printed "no new warnings or oopses".
 | Change 2: a child does not inherit the quota | `test_fork` passed |
 | Change 3: a send larger than what is left is refused whole | `test_basic`, `test_udp`, `test_threads` passed |
 | Other call paths: `sendmsg`/`recvmsg`, `sendmmsg`/`recvmmsg`, `sendfile`, `splice`, `MSG_PEEK`, non-blocking, a zero-length send, IPv6, io_uring send/receive/zero-copy send | `test_calls` and `test_uring` passed, each path counted exactly |
-| `TCP_ZEROCOPY_RECEIVE` | was not counted on the first run (2026-10-27); patch 0006 refuses it with `EOPNOTSUPP` under a quota; `test_zerocopy` passed: refused, then a counted `recv()` of the same data |
+| `TCP_ZEROCOPY_RECEIVE` | was not counted on the first run; patch 0006 refuses it with `EOPNOTSUPP` under a quota. `test_zerocopy` passed on the third run. On the fourth run its refusal and counted `recv()` checks passed, but its wait for the echo failed (a race in the test, fixed since); rerun to confirm |
 | A real program stopped at the limit (`test_realprog.sh`) | passed: `dd` stopped at exactly 20000 bytes with `EDQUOT` |
 | Debug options | the tested kernel had every option of `config/net_quota_debug.config` on (lockdep, atomic-sleep, spinlock, timer-object checks); nothing was logged |
-| Change 3, receive side: judged by the data waiting, refused whole when it is more than what is left, data stays queued | compiled with `W=1`; `test_udp` and `test_calls` updated; **not yet run** |
+| Change 3, receive side: judged by the data waiting, refused whole when it is more than what is left, data stays queued | `test_udp` (unconnected UDP: refused whole for any buffer, datagram stays queued, costs nothing) and the TCP case of `test_calls` passed on the fourth run |
 
 What is still open is in [docs/gap/README.md](docs/gap/README.md); the history
 and next steps are in [docs/handoff.md](docs/handoff.md).

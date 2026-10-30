@@ -1,8 +1,8 @@
 # Professor change 3: drop a request that is larger than the remaining quota
 
-Status: **implemented** for sends (hardware run 2026-10-27 and 2026-10-28:
-passed) and for receives (compiled with `W=1` against v7.2.12; `test_udp` and
-`test_calls` updated; **not yet run on the real kernel**). This page records the
+Status: **implemented and run on the real kernel**: sends (runs of 2026-10-27
+and 2026-10-28) and receives (`test_udp` and the TCP case of `test_calls`
+passed on the fourth run, with lockdep on and a clean kernel log). This page records the
 change, the decisions, and what the receive rule can and cannot do.
 
 The list of open gaps is [README.md](README.md).
