@@ -261,12 +261,8 @@ static int t_peek(void)
 		return 1;
 	fill(buf, sizeof(buf), 'k');
 	CHECK(send(fd, buf, 1000, 0) == 1000, "send of 1000 bytes");
-	for (int i = 0; i < 100; i++) {			/* wait for the echo, up to 5 s */
-		n = recv(fd, buf, 1000, MSG_PEEK | MSG_DONTWAIT);
-		if (n == 1000)
-			break;
-		poll(&(struct pollfd){ .fd = fd, .events = POLLIN }, 1, 50);
-	}
+	tc_wait_queued(fd, 1000, 5000);			/* wait for the echo */
+	n = recv(fd, buf, 1000, MSG_PEEK | MSG_DONTWAIT);
 	CHECK(n == 1000, "MSG_PEEK sees the 1000 echoed bytes (got %zd)", n);
 	n = recv(fd, buf, 1000, MSG_PEEK);
 	CHECK(n == 1000, "a second MSG_PEEK sees them again (got %zd)", n);
@@ -321,12 +317,7 @@ static int t_recv_whole(void)
 	fill(buf, sizeof(buf), 'r');
 	n = send(fd, buf, 3000, 0);
 	CHECK(n == 3000, "send of 3000 bytes (got %zd)", n);
-	for (int i = 0; i < 100 && avail < 3000; i++) {		/* wait for the echo */
-		if (ioctl(fd, FIONREAD, &avail))
-			break;
-		if (avail < 3000)
-			poll(&(struct pollfd){ .fd = fd, .events = POLLIN }, 1, 50);
-	}
+	avail = tc_wait_queued(fd, 3000, 5000);		/* wait for the echo */
 	CHECK(avail >= 3000, "the 3000-byte echo is queued (%d)", avail);
 
 	n = recv(fd, buf, sizeof(buf), 0);

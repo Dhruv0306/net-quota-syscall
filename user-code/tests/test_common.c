@@ -7,6 +7,7 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <signal.h>
+#include <sys/ioctl.h>
 #include <sys/wait.h>
 
 #include "net_quota_user.h"
@@ -220,4 +221,16 @@ enum tc_probe tc_probe_remaining(int fd, size_t left, size_t *moved)
 	}
 	free(buf);
 	return res;
+}
+
+int tc_wait_queued(int fd, int want, int timeout_ms)
+{
+	int avail = 0;
+
+	for (int waited = 0; waited <= timeout_ms; waited += 10) {
+		if (ioctl(fd, FIONREAD, &avail) || avail >= want)
+			break;
+		usleep(10 * 1000);
+	}
+	return avail;
 }

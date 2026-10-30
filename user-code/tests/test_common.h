@@ -52,6 +52,14 @@ void tc_pipe_wait(int fd);
 /* waitpid(); returns the exit code, or 255 if the child did not exit. */
 int tc_wait_exit(pid_t pid);
 
+/*
+ * Waits until at least @want bytes are queued for reading on @fd (FIONREAD),
+ * for at most @timeout_ms, sleeping between looks. Returns the bytes queued.
+ * poll() is not used: it returns at once while any data is queued, so a loop
+ * around it spins through its attempts when only part of an echo has arrived.
+ */
+int tc_wait_queued(int fd, int want, int timeout_ms);
+
 /* Blocking TCP connect over IPv6 to [ip6]:port. Returns an fd, or -1. */
 int tc_connect6(const char *ip6, unsigned short port);
 

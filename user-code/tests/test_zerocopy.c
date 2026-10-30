@@ -70,12 +70,7 @@ static int zc_body(void *arg)
 	}
 	CHECK(sent == SENT, "sent %d bytes (got %zu)", SENT, sent);
 
-	for (int i = 0; i < 100 && avail < SENT; i++) {		/* wait for the echo */
-		if (ioctl(fd, FIONREAD, &avail))
-			break;
-		if (avail < SENT)
-			poll(&(struct pollfd){ .fd = fd, .events = POLLIN }, 1, 50);
-	}
+	avail = tc_wait_queued(fd, SENT, 5000);		/* wait for the echo */
 	CHECK(avail >= SENT, "%d echoed bytes are queued in the socket", avail);
 
 	map = mmap(NULL, MAPLEN, PROT_READ, MAP_SHARED, fd, 0);
