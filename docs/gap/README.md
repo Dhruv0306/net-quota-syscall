@@ -8,13 +8,17 @@ Kinds: **behaviour** (what the system does), **proof** (a claim not yet
 tested), **doc** (a document is wrong or missing), **process** (how the work is
 done).
 
-Last reviewed: after the fourth hardware run (receive rule passed; one test race found and fixed).
+Last reviewed: after the fifth hardware run (all tests passed, no open gaps).
 
 ## Open
 
-| ID | Kind | Gap | Next action | Needs |
-|---|---|---|---|---|
-| G13 | proof | `test_zerocopy` failed on the fourth run in its own wait for the echo ("12288 echoed bytes are queued"): `poll()` returns at once while data is queued, so the loop spun through its attempts. The checks after it (refusal, counted `recv()`) passed. Fixed with a sleeping `tc_wait_queued()` helper, also used in `test_calls`; not rerun yet. | Pull, `make` in `user-code`, rerun `run_tests.sh` (no kernel rebuild) | the test machine |
+None. Every item on this page has been decided, fixed or accepted, and the last
+full run of `run_tests.sh` (the fifth) ended with `ALL TESTS PASSED`.
+
+Two call paths have no test and are documented as untested, not as gaps:
+io_uring multishot receive with provided buffers, and io_uring zero-copy
+receive (it needs a network card with header/data split and cannot run on a
+veth pair). See `user-code/docs/design.md`, limitation 5.
 
 ## Closed in the 2026-10-23 review
 
@@ -45,3 +49,4 @@ Last reviewed: after the fourth hardware run (receive rule passed; one test race
 | D23 | The receive side of change 3 was open (was G1) | professor's answers of 2026-10-28: judge by the data waiting, keep it queued, apply to TCP where possible. Implemented in `net_quota.c`; limits written down in `design.md` 14 to 16. Run pending (G12) |
 | D24 | Is escaping the limit by forking intended? (was G2) | the professor confirmed on 2026-10-28: yes, a child starts unrestricted. `design.md` limitation 1 says so |
 | D25 | The receive rule had not run on the real kernel (was G12) | fourth run: `test_udp` and the TCP case of `test_calls` passed, `SIOCINQ` lookup and the unconnected-UDP sender lookup included; lockdep on, kernel log clean |
+| D26 | `test_zerocopy` raced in its own wait for the echo (was G13) | fifth run: fixed with `tc_wait_queued()`; `test_zerocopy` and `test_calls` passed, the whole suite ended with `ALL TESTS PASSED`, `dmesg` showed only the boot line about RCU lockdep |

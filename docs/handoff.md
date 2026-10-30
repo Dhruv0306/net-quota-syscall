@@ -118,6 +118,10 @@ Its refusal and counted-`recv()` checks passed in the same run. That is a race i
 the test; it now sleeps between looks (`tc_wait_queued()`), and the same pattern
 was fixed in `test_calls`. The kernel log check was clean with lockdep on.
 
+Fifth run, after the test fix: `ALL TESTS PASSED`, kernel log clean, `dmesg`
+showed only the boot line "RCU lockdep checking is enabled". `test_zerocopy`,
+`test_udp`, the TCP receive case and every other case passed.
+
 The tested kernel had every option of `config/net_quota_debug.config` on
 (`PROVE_LOCKING`, `DEBUG_ATOMIC_SLEEP`, `DEBUG_SPINLOCK`, `DEBUG_OBJECTS`,
 `DEBUG_OBJECTS_TIMERS`), so lockdep, atomic-sleep, spinlock and timer-object
@@ -133,14 +137,13 @@ enabled".
 | A send larger than what is left is refused whole (`net_quota.c`) | yes | **yes: `test_basic`, `test_udp`, `test_threads` passed** (threads: 19600 of 20000, every thread ended with `EDQUOT`) |
 | `sendmsg`/`recvmsg`, `sendmmsg`/`recvmmsg`, `sendfile` (also oversized), `splice` both ways, `MSG_PEEK`, non-blocking `recv`, zero-length send, IPv6 | yes | **yes: `test_calls` passed**, each path counted exactly. IPv6 ran on a private address (`fd00:6e71::1`) that the runner gives the loopback interface |
 | io_uring send, receive, zero-copy send, oversized send | yes | **yes: `test_uring` passed**; the oversized send came back as `-122` (`EDQUOT`) |
-| `TCP_ZEROCOPY_RECEIVE` (patch 0006) | yes, `W=1`, no warnings (7.2.12) | **third run: `test_zerocopy` passed**: refused with `EOPNOTSUPP`, data stayed queued, a normal `recv()` took it and was counted. **Fourth run: refusal and counted `recv()` passed again; the test's own wait for the echo raced** (fixed, rerun pending). On the first run, before the patch, the data was read without being charged |
+| `TCP_ZEROCOPY_RECEIVE` (patch 0006) | yes, `W=1`, no warnings (7.2.12) | **yes: `test_zerocopy` passed** (third and fifth run): refused with `EOPNOTSUPP`, the 32768 bytes stayed queued, a normal `recv()` took them and was counted (4464 of 70000 left). On the first run, before the patch, the data was read without being charged. The fourth run failed only in the test's own wait for the echo (a race, fixed) |
 | A real program stopped at the limit (`test_realprog.sh`) | yes | **yes:** dd stopped at exactly 20000 bytes with `Disk quota exceeded`, exit status 1; dd run as a child of the restricted shell was not limited, as designed |
 | A receive is judged by the data waiting: refused whole when it is more than what is left, data stays queued (`net_quota.c` only) | yes, `W=1`, no warnings (7.2.12) | **yes: `test_udp` passed** (unconnected UDP, so the sender lookup ran: refused whole for any buffer, datagram still queued, costs nothing) and the **TCP case of `test_calls` passed** (3000 waiting and 2000 left refused, data still queued, a recv of exactly 2000 works). Lockdep stayed quiet |
 
-Still to run: `test_zerocopy` and `test_calls` once more, after the wait-loop
-fix. Still without a test: io_uring multishot receive with provided buffers, and
-io_uring zero-copy receive (needs a network card with header/data split, cannot
-run on a veth pair).
+Nothing is left to run. Still without a test: io_uring multishot receive with
+provided buffers, and io_uring zero-copy receive (needs a network card with
+header/data split, cannot run on a veth pair).
 
 ## 5. The machine and the workflow
 
@@ -298,7 +301,10 @@ owner's request.
 
 ## 10. Suggested next steps
 
-1. Pull `main`, rebuild `user-code` (only the tests changed, no kernel rebuild),
-   and rerun `sudo ./tests/run_tests.sh`. `test_zerocopy` should print `PASSED`.
-2. Optional: tests for io_uring multishot receive and io_uring zero-copy
-   receive (section 4), or leave them documented as untested.
+There are no open gaps (`docs/gap/README.md`). Optional work:
+
+1. Tests for io_uring multishot receive and io_uring zero-copy receive
+   (section 4), or leave them documented as untested.
+2. Hand the project in: `README.md` has the status table, `design.md` the
+   rules and limitations, `docs/removing-net-quota.md` and
+   `docs/removing-custom-kernel.md` the way back.
