@@ -3,7 +3,7 @@
 Every command from the kernel source to a booted kernel with the new system
 call, in the order they are run. It follows the course reading material
 (untar, configure, `make`, `make modules_install`, `make install`, reboot),
-for Linux 7.2.10 instead of 5.19.8.
+for Linux 7.2.12 instead of 5.19.8.
 
 Assumptions: Ubuntu 24.04 on x86_64, and an original kernel that stays in the
 GRUB menu as a fallback. A bad kernel can fail to boot, so do not remove the
@@ -13,20 +13,20 @@ The work has two parts, as in the course:
 
 | Part | What it does | Result after the reboot |
 |---|---|---|
-| A | builds and boots a plain 7.2.10 kernel, with no changes | `uname -r` prints `7.2.10` |
-| B | adds the net_quota code, rebuilds and boots again | `uname -r` prints `7.2.10-netquota` |
+| A | builds and boots a plain 7.2.12 kernel, with no changes | `uname -r` prints `7.2.12` |
+| B | adds the net_quota code, rebuilds and boots again | `uname -r` prints `7.2.12-netquota` |
 
 Part A shows that the build tools, the install and GRUB work before any of our
-code is involved, and it leaves a plain 7.2.10 kernel as a second fallback. If
-you already built and booted a plain 7.2.10 kernel, skip to Part B.
+code is involved, and it leaves a plain 7.2.12 kernel as a second fallback. If
+you already built and booted a plain 7.2.12 kernel, skip to Part B.
 
 ---
 
-## Part A. Build and boot a plain Linux 7.2.10 kernel
+## Part A. Build and boot a plain Linux 7.2.12 kernel
 
 ### A1. Download the kernel and open a root shell
 
-- Download the 7.2.10 tarball (`linux-7.2.10.tar.xz`) from
+- Download the 7.2.12 tarball (`linux-7.2.12.tar.xz`) from
   [kernel.org](https://www.kernel.org).
 - Open a terminal and become the root (privileged) user:
 
@@ -43,20 +43,20 @@ cd /usr/src
 
 # Find the tarball. Under "sudo su", ~ may mean /root and not your own home folder,
 # so use the full path of your Downloads folder if this finds nothing.
-ls /home/<your current user name>/Downloads/linux-7.2.10.tar.xz
+ls /home/<your current user name>/Downloads/linux-7.2.12.tar.xz
 
-mv /home/<your current user name>/Downloads/linux-7.2.10.tar.xz .          # if it is in Downloads
-mv /path/to/linux-7.2.10.tar.xz .             # if it is somewhere else
+mv /home/<your current user name>/Downloads/linux-7.2.12.tar.xz .          # if it is in Downloads
+mv /path/to/linux-7.2.12.tar.xz .             # if it is somewhere else
 
 # Verify
-ls -ld linux-7.2.10.tar.xz
+ls -ld linux-7.2.12.tar.xz
 ```
 
 ### A3. Extract the source
 
 ```bash
-tar -xvf linux-7.2.10.tar.xz
-cd linux-7.2.10
+tar -xvf linux-7.2.12.tar.xz
+cd linux-7.2.12
 ```
 
 ### A4. Install the build dependencies
@@ -96,13 +96,13 @@ A good run ends with `Kernel: arch/x86/boot/bzImage is ready`.
 ls -lh arch/x86/boot/bzImage            # verify the kernel image
 
 make modules_install                    # install the kernel modules
-ls -ld /lib/modules/7.2.10              # verify
+ls -ld /lib/modules/7.2.12              # verify
 
 make install                            # install the kernel
 
 # Verify
-ls -lh /boot/vmlinuz-7.2.10
-ls -lh /boot/System.map-7.2.10
+ls -lh /boot/vmlinuz-7.2.12
+ls -lh /boot/System.map-7.2.12
 ```
 
 ### A8. Update GRUB
@@ -110,16 +110,16 @@ ls -lh /boot/System.map-7.2.10
 ```bash
 update-grub
 
-grep -E 'menuentry.*7.2.10' /boot/grub/grub.cfg      # verify
+grep -E 'menuentry.*7.2.12' /boot/grub/grub.cfg      # verify
 ```
 
 ### A9. Reboot and check
 
 Reboot the machine. At the GRUB menu choose **Advanced options for Ubuntu**,
-then the 7.2.10 kernel. Once it has started:
+then the 7.2.12 kernel. Once it has started:
 
 ```bash
-uname -r                                # should print 7.2.10
+uname -r                                # should print 7.2.12
 ```
 
 ---
@@ -131,7 +131,7 @@ uname -r                                # should print 7.2.10
 Still in a root shell (`sudo su`):
 
 ```bash
-KSRC=/usr/src/linux-7.2.10            # the kernel source from Part A
+KSRC=/usr/src/linux-7.2.12            # the kernel source from Part A
 NQ=/path/to/net-quota-syscall         # absolute path of this repo
 ```
 
@@ -188,7 +188,7 @@ grep -E '^CONFIG_(NET|INET|LOCALVERSION)=' .config
 
 Expected: `CONFIG_NET=y`, `CONFIG_INET=y` and `CONFIG_LOCALVERSION="-netquota"`.
 The fragment gives the build its own name, so it cannot overwrite the plain
-7.2.10 kernel from Part A.
+7.2.12 kernel from Part A.
 
 Optional while developing: `config/net_quota_debug.config` turns on lockdep and
 sleeping-in-atomic checks. Merge it the same way, then run `make olddefconfig`.
@@ -220,17 +220,17 @@ does the same. Together they:
 
 | Installed | Where |
 |---|---|
-| Kernel modules | `/lib/modules/7.2.10-netquota/` |
-| Kernel image | `/boot/vmlinuz-7.2.10-netquota` |
-| Symbol map and config | `/boot/System.map-7.2.10-netquota`, `/boot/config-7.2.10-netquota` (when the installer copies them) |
-| Initial RAM disk | `/boot/initrd.img-7.2.10-netquota` (through `update-initramfs`) |
+| Kernel modules | `/lib/modules/7.2.12-netquota/` |
+| Kernel image | `/boot/vmlinuz-7.2.12-netquota` |
+| Symbol map and config | `/boot/System.map-7.2.12-netquota`, `/boot/config-7.2.12-netquota` (when the installer copies them) |
+| Initial RAM disk | `/boot/initrd.img-7.2.12-netquota` (through `update-initramfs`) |
 | GRUB entry | through `update-grub` |
 
 Verify:
 
 ```bash
-ls -ld /lib/modules/7.2.10-netquota
-ls -lh /boot/vmlinuz-7.2.10-netquota
+ls -ld /lib/modules/7.2.12-netquota
+ls -lh /boot/vmlinuz-7.2.12-netquota
 ```
 
 Messages from `dkms` about other modules (for example VirtualBox) during the
@@ -242,16 +242,16 @@ install are warnings and do not stop the install.
 or if the entry is missing:
 
 ```bash
-update-initramfs -c -k 7.2.10-netquota
+update-initramfs -c -k 7.2.12-netquota
 update-grub
 ```
 
 The output of `update-grub` should include
-`Found linux image: /boot/vmlinuz-7.2.10-netquota`. To check the menu file:
+`Found linux image: /boot/vmlinuz-7.2.12-netquota`. To check the menu file:
 
 ```bash
 ls /boot | grep netquota
-grep -E 'menuentry.*7.2.10-netquota' /boot/grub/grub.cfg | head -3
+grep -E 'menuentry.*7.2.12-netquota' /boot/grub/grub.cfg | head -3
 ```
 
 ### B7. Reboot into the new kernel
@@ -261,7 +261,7 @@ reboot
 ```
 
 At the GRUB menu choose **Advanced options for Ubuntu**, then
-**Ubuntu, with Linux 7.2.10-netquota**. If the menu does not appear, hold
+**Ubuntu, with Linux 7.2.12-netquota**. If the menu does not appear, hold
 `Shift` while the machine starts (BIOS), or tap `Esc` (UEFI). With Secure Boot
 on, an unsigned custom kernel will not start: turn Secure Boot off or sign the
 kernel.
@@ -269,7 +269,7 @@ kernel.
 ### B8. Check that it is the right kernel
 
 ```bash
-uname -r                                  # 7.2.10-netquota
+uname -r                                  # 7.2.12-netquota
 sudo grep sys_net_quota /proc/kallsyms    # __x64_sys_net_quota
 ```
 
@@ -358,7 +358,7 @@ touches, so each one can be checked and applied on its own. These changes touch
 ## Go back to another kernel
 
 Restart, choose **Advanced options for Ubuntu** and pick the kernel you want:
-the original one, or the plain 7.2.10 from Part A. That is all that is needed
+the original one, or the plain 7.2.12 from Part A. That is all that is needed
 to stop using net_quota.
 
 To delete the installed net_quota kernel and its GRUB entry, follow
@@ -372,11 +372,11 @@ system call out of the kernel *source* and build a kernel without it, follow
 | What you see | Cause and fix |
 |---|---|
 | `./build/nq_cli` says "not available: boot the net-quota kernel" | the syscall returned `ENOSYS`: you booted another kernel. Check `uname -r`, restart and pick the netquota entry |
-| `patch` prints `Hunk FAILED` or leaves `.rej` files | the source is not exactly 7.2.10, or a patch was applied twice. Extract a fresh copy of the source and repeat B2 |
+| `patch` prints `Hunk FAILED` or leaves `.rej` files | the source is not close enough to 7.2.12 (7.2.10 also works; see "Kernel version" in `kernel-code/README.md`), or a patch was applied twice. Extract a fresh copy of the source and repeat B2 |
 | `make` stops with `Killed` | out of memory. Run `make -j2` (it resumes where it stopped) |
 | `No rule to make target 'debian/canonical-certs.pem'` | an Ubuntu `.config` was copied in and A5 was skipped. Run `scripts/config --set-str SYSTEM_TRUSTED_KEYS "" --set-str SYSTEM_REVOCATION_KEYS ""`, then `make olddefconfig` |
 | `make` asks for `pahole` or BTF errors | `apt install dwarves`, or `scripts/config --disable DEBUG_INFO_BTF` and `make olddefconfig` |
-| The new kernel is not in the GRUB menu | run `update-grub` and look for the `Found linux image` line for `7.2.10-netquota` |
+| The new kernel is not in the GRUB menu | run `update-grub` and look for the `Found linux image` line for `7.2.12-netquota` |
 | The new kernel does not start | restart and pick another kernel, then check Secure Boot and `~/build.log` |
 | Tests fail with `connection refused` | the test server could not start. Run `ip -4 addr` and pass an address: `sudo SERVER_IP=<address> ./tests/run_tests.sh` |
 

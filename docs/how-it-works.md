@@ -27,7 +27,7 @@ flowchart TB
     LIB["Wrapper library<br/>nq_set_quota and nq_strerror"]
     TARGET["Restricted program<br/>any send, recv, read, write"]
   end
-  subgraph KS["Kernel space (Linux 7.2.10)"]
+  subgraph KS["Kernel space (Linux 7.2.12)"]
     direction TB
     ENTRY["System call entry<br/>number 472"]
     SYS["sys_net_quota<br/>net_quota/net_quota.c"]

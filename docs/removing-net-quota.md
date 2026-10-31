@@ -1,15 +1,15 @@
 # Removing the net_quota system call from the kernel
 
-How to take `net_quota` (syscall 472) back out of a Linux 7.2.10 tree and end
+How to take `net_quota` (syscall 472) back out of a Linux 7.2.12 tree and end
 up with a kernel that does not have it. Written for the setup in
 `handoff.md` section 5: the source is the kernel.org tarball at
-`/usr/src/linux-7.2.10`, **not a git repository**, patched with `patch -p1`.
+`/usr/src/linux-7.2.12`, **not a git repository**, patched with `patch -p1`.
 
-The source-tree steps (part B, steps 2 and 3) were tested on a pristine 7.2.10
-tree: all six new files copied in, patches 0001 to 0006 applied, then removed
-as described below. (The reverse step was repeated with the six-patch series
-on the nine patched files: all came back identical to the original.) The result was byte-for-byte identical to the original
-tree (`diff -r` reported no difference). Rebuilding and booting the result was
+The source-tree steps (part B, steps 2 and 3) were tested on pristine 7.2.10 and
+7.2.12 trees: the six new files copied in, patches 0001 to 0006 applied, then
+removed as described below. On 7.2.10 the whole tree was compared with `diff -r`
+and was identical to the original; on 7.2.12 the nine patched files were
+compared and all came back identical. Rebuilding and booting the result was
 not tested.
 
 ## Pick the lightest option that is enough
@@ -22,7 +22,7 @@ not tested.
 
 ## Part A: just boot a kernel that does not have it
 
-The syscall exists only in the `7.2.10-netquota` kernel. Pick the original
+The syscall exists only in the `7.2.12-netquota` kernel. Pick the original
 Ubuntu entry in GRUB (under "Advanced options") and it is gone, because that
 kernel never had it. Check with the command in step 7 below; it should say
 "Function not implemented".
@@ -35,7 +35,7 @@ Run as root on the Ubuntu machine. Keep the project repo at
 ### 1. Check the tree is as expected
 
 ```bash
-cd /usr/src/linux-7.2.10
+cd /usr/src/linux-7.2.12
 grep -rn "net_quota" Kbuild arch/x86/entry/syscalls/syscall_64.tbl \
     include/linux/syscalls.h include/asm-generic/syscalls.h \
     include/linux/sched/signal.h kernel/fork.c kernel/exit.c net/socket.c \
@@ -55,7 +55,7 @@ correctness. Going newest first is still a good habit, and it is what the loop
 does.
 
 ```bash
-cd /usr/src/linux-7.2.10
+cd /usr/src/linux-7.2.12
 P=/path/to/net-quota-syscall/kernel-code/patches
 
 for p in $(ls -r $P/000*.patch); do
@@ -72,7 +72,7 @@ before it changes anything.
 ### 3. Delete the six new files
 
 ```bash
-cd /usr/src/linux-7.2.10
+cd /usr/src/linux-7.2.12
 rm -rf net_quota
 rm -f include/linux/net_quota.h include/net/net_quota.h include/uapi/linux/net_quota.h
 ```
@@ -84,7 +84,7 @@ hooks still refer to them.
 ### 4. Check that nothing is left
 
 ```bash
-cd /usr/src/linux-7.2.10
+cd /usr/src/linux-7.2.12
 grep -rIn "net_quota\|NET_QUOTA" --include='*.c' --include='*.h' \
     --include='Kbuild' --include='*.tbl' --include='Makefile' . | head
 find . -name '*.orig' -o -name '*.rej'
@@ -108,12 +108,12 @@ hand. The patches touch these places:
 ### 5. Take the version tag off the build name
 
 The project's config fragment sets `CONFIG_LOCALVERSION="-netquota"`, so the
-rebuilt kernel would still call itself `7.2.10-netquota` although the syscall
+rebuilt kernel would still call itself `7.2.12-netquota` although the syscall
 is gone. That is confusing and would overwrite the old files in `/boot`. Clear
 it:
 
 ```bash
-cd /usr/src/linux-7.2.10
+cd /usr/src/linux-7.2.12
 scripts/config --set-str LOCALVERSION ""
 make olddefconfig
 ```
@@ -124,7 +124,7 @@ kernel replaces the old one under the same name.
 ### 6. Rebuild and install
 
 ```bash
-cd /usr/src/linux-7.2.10
+cd /usr/src/linux-7.2.12
 make -j"$(nproc)" && make modules_install && make install && update-grub && reboot
 ```
 
@@ -151,17 +151,17 @@ Only do this once you have booted another kernel that works. Never remove the
 kernel that is running (`uname -r`).
 
 ```bash
-update-initramfs -d -k 7.2.10-netquota
-rm -f  /boot/vmlinuz-7.2.10-netquota /boot/System.map-7.2.10-netquota \
-       /boot/config-7.2.10-netquota
-rm -rf /lib/modules/7.2.10-netquota
+update-initramfs -d -k 7.2.12-netquota
+rm -f  /boot/vmlinuz-7.2.12-netquota /boot/System.map-7.2.12-netquota \
+       /boot/config-7.2.12-netquota
+rm -rf /lib/modules/7.2.12-netquota
 update-grub
 ```
 
 A fuller version of this part, with the checks and the fallbacks, is in
 `removing-custom-kernel.md`.
 
-Then check that the GRUB menu no longer lists `7.2.10-netquota`. If step 5 was
+Then check that the GRUB menu no longer lists `7.2.12-netquota`. If step 5 was
 skipped and the rebuilt kernel has the same name, do not run Part C for that
 name, or you will delete the kernel you just built.
 
@@ -183,7 +183,7 @@ the built binaries anywhere else, remove those copies as well.
   files.
 - **`patch` reports "Reversed (or previously applied) patch detected"** during
   the dry run: that patch is not in the tree, so skip it and go on.
-- **A fresh tree is the cleanest way.** Extract a new 7.2.10 tarball, copy in
+- **A fresh tree is the cleanest way.** Extract a new 7.2.12 tarball, copy in
   the running kernel's `.config` (with the `SYSTEM_TRUSTED_KEYS` fix from
   `setup-and-build.md`) and build. That tree never had net_quota in it, and
   steps 1 to 4 are not needed.

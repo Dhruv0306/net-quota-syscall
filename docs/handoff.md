@@ -25,7 +25,7 @@ use for that time. It only works if the pid is a descendant of the caller
 network use, and when the period ends the limit is lifted by itself.
 
 The result is a new system call, `net_quota(pid, data_size, period_sec)`,
-number **472** on x86_64, in a custom **Linux 7.2.10** kernel on **Ubuntu 24.04**,
+number **472** on x86_64, in a custom **Linux 7.2.12** kernel on **Ubuntu 24.04**,
 plus a user-space wrapper, command-line tools and tests.
 
 Repository: `github.com/Dhruv0306/net-quota-syscall`.
@@ -67,7 +67,7 @@ net-quota-syscall/
 │   │   ├── net_quota/        net_quota.c (the system call and all logic), net_quota_syscall.h, Makefile
 │   │   └── include/          linux/net_quota.h, net/net_quota.h, uapi/linux/net_quota.h
 │   ├── patches/            0001 to 0006: every edit to an existing kernel file
-│   └── config/             net_quota.config (names the build 7.2.10-netquota), net_quota_debug.config
+│   └── config/             net_quota.config (names the build 7.2.12-netquota), net_quota_debug.config
 ├── user-code/
 │   ├── src/                wrapper library, nq_cli, nq_run, nq_demo
 │   ├── include/            wrapper API, message texts, macro wrapper
@@ -150,9 +150,9 @@ header/data split, cannot run on a veth pair).
 | Item | Value |
 |---|---|
 | Test machine | Ubuntu 24.04, x86_64, a real machine (not a VM) |
-| Kernel source | the 7.2.10 tarball from kernel.org, extracted at `/usr/src/linux-7.2.10` (on 2026-10-24 the tree in use was `/usr/src/linux-7.2.12`; the patches dry-run clean, apply and compile with `W=1` without warnings on both, and the build name follows the version: `7.2.12-netquota`); **not a git repository**, so patches are applied with `patch -p1` |
-| Configuration | the running kernel's `.config` plus `net_quota.config`, giving the name `7.2.10-netquota` |
-| GRUB menu | the original Ubuntu kernel and `7.2.10-netquota`, and a plain 7.2.10 if one was built earlier |
+| Kernel source | the 7.2.12 tarball from kernel.org, extracted at `/usr/src/linux-7.2.12`; **not a git repository**, so patches are applied with `patch -p1`. The build name follows the version: `7.2.12-netquota`. Version notes: `kernel-code/README.md`, section "Kernel version" |
+| Configuration | the running kernel's `.config` plus `net_quota.config`, giving the name `7.2.12-netquota` |
+| GRUB menu | the original Ubuntu kernel and `7.2.12-netquota`, and a plain 7.2.12 if one was built earlier |
 | Git work | on Windows, `D:\github\net-quota-syscall`; the kernel build is on the Ubuntu machine |
 
 Conventions:
@@ -172,7 +172,7 @@ Conventions:
 After editing kernel code (on the Ubuntu machine, as root):
 
 ```bash
-cd /usr/src/linux-7.2.10
+cd /usr/src/linux-7.2.12
 cp -r /path/to/net-quota-syscall/kernel-code/new-files/. .         # new and changed new files
 patch -p1 < /path/to/net-quota-syscall/kernel-code/patches/<new patch>   # only for a new patch
 make -j"$(nproc)" && make modules_install && make install && update-grub && reboot
@@ -181,10 +181,10 @@ make -j"$(nproc)" && make modules_install && make install && update-grub && rebo
 If the tree already has net_quota in an older state, follow "Update an existing
 build" in `setup-and-build.md`.
 
-After the reboot, pick the `7.2.10-netquota` entry and run:
+After the reboot, pick the `7.2.12-netquota` entry and run:
 
 ```bash
-uname -r                                  # 7.2.10-netquota
+uname -r                                  # 7.2.12-netquota
 cd user-code && make
 sudo ./tests/run_tests.sh                 # ends with: ALL TESTS PASSED
 ```
@@ -211,7 +211,7 @@ The tests, and what each one proves:
 | `test_realprog.sh` | a real program (`dd`, run with `exec` from the shell so it is the restricted process) started with `nq_run` is stopped at exactly the limit; the same `dd` run as a child of the restricted shell is not limited (a child starts unrestricted) |
 
 A way to check kernel changes **without booting**: download the full source
-(`https://codeload.github.com/gregkh/linux/tar.gz/refs/tags/v7.2.10`), copy in
+(`https://codeload.github.com/gregkh/linux/tar.gz/refs/tags/v7.2.12`), copy in
 `new-files/`, apply the patches, then `make defconfig && make prepare` and
 `make W=1 net_quota/net_quota.o kernel/fork.o kernel/exit.o net/socket.o`.
 It checks syntax, types and compiler warnings (none were reported for the two

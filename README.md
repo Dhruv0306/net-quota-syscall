@@ -6,7 +6,8 @@ payload bytes sent and received on one combined counter, the window starts the
 moment the limit is set, and a kernel timer revokes it when the period ends. When the limit is reached, send/receive fail with `EDQUOT` until
 then. A send larger than what is left is refused whole, never done partly.
 
-Target platform: Ubuntu 24.04 on x86_64, Linux kernel 7.2.10 (custom build).
+Target platform: Ubuntu 24.04 on x86_64, Linux kernel 7.2.12 (custom build; the
+patches also apply on 7.2.10, see `kernel-code/README.md`).
 
 ```
 net-quota-syscall/

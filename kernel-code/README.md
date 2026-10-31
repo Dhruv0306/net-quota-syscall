@@ -1,6 +1,6 @@
 # kernel-code
 
-Kernel side of the `net_quota` system call for Linux **7.2.10** on x86_64,
+Kernel side of the `net_quota` system call for Linux **7.2.12** on x86_64,
 laid out the way the course reading material (CS G623, system call
 implementation and kernel recompilation) does it: the new system call lives in
 its own top-level directory with its own Makefile and header.
@@ -24,7 +24,7 @@ kernel-code/
 │   ├── 0005  Kbuild, syscall_64.tbl, asm-generic/syscalls.h, linux/syscalls.h
 │   └── 0006  net/ipv4/tcp.c                 refuse TCP_ZEROCOPY_RECEIVE under a quota
 └── config/
-    ├── net_quota.config            names the build 7.2.10-netquota
+    ├── net_quota.config            names the build 7.2.12-netquota
     └── net_quota_debug.config      optional lockdep / atomic-sleep checks
 ```
 
@@ -35,18 +35,33 @@ version.
 
 ## Status
 
-The six patches apply cleanly on a pristine v7.2.10 and v7.2.12: a dry run of
-each, then all applied in order (each edits different files, so each also works
-alone). A kernel built from all six and the new files was booted on the test
-machine on 2026-10-28 and every test in `user-code/tests` passed, with no new
-warnings in the kernel log. That kernel had every option of
-`config/net_quota_debug.config` on (lockdep, atomic-sleep, spinlock and
-timer-object checks), so those ran during the tests too. Patch 0006 (refuse
-`TCP_ZEROCOPY_RECEIVE` under a quota) is proven by `test_zerocopy`. Everything
-below that says 7.2.10 holds for any 7.2.x: the build is then named
-`7.2.x-netquota`. The receive side of professor change 3 (judged by the data
+A kernel built from all six patches and the new files was booted on the test
+machine and every test in `user-code/tests` passed, with no new warnings in the
+kernel log. That kernel had every option of `config/net_quota_debug.config` on
+(lockdep, atomic-sleep, spinlock and timer-object checks), so those ran during
+the tests too. Patch 0006 (refuse `TCP_ZEROCOPY_RECEIVE` under a quota) is proven
+by `test_zerocopy`. The receive side of professor change 3 (judged by the data
 waiting; `net_quota.c` only, no new patch) passed `test_udp` and the TCP receive
-case of `test_calls` on the test machine, with lockdep on and a clean kernel log.
+case of `test_calls`, also with lockdep on and a clean kernel log.
+
+## Kernel version
+
+These pages are written for **Linux 7.2.12**, the tree on the test machine.
+Checked on a fresh v7.2.12 tree, with the setup guide's own commands:
+
+- the six patches dry-run clean one by one (each edits different files), apply
+  in order, and reversing them restores the nine patched files;
+- `kernel/fork.o`, `kernel/exit.o`, `net/socket.o`, `net/ipv4/tcp.o` and
+  `net_quota/net_quota.o` compile with `W=1` without warnings;
+- with `config/net_quota.config` added, `make kernelrelease` prints
+  `7.2.12-netquota`: the build name is the kernel version plus `-netquota`.
+
+The patches also dry-run and apply cleanly on v7.2.10 and reverse cleanly there
+(that series was compiled on 7.2.10 only in an earlier form). The hunks fit with
+small offsets, so another 7.2.x is likely to work too, but only 7.2.10 and
+7.2.12 were checked. On a different version, every `7.2.12` in these pages
+becomes that version, and a `Hunk FAILED` from `patch` means the source is not
+close enough: see the table at the end of `docs/setup-and-build.md`.
 
 Until 2026-10-24 there were seven patches, and three of them (0002, 0006,
 0007) edited `kernel/fork.c` one on top of the other, so a dry run of the whole
@@ -57,11 +72,11 @@ was built from the old series needs nothing: its `fork.c` already is the final
 one. `docs/setup-and-build.md` says how to bring a tree in any other state up to
 date.
 
-## Following the course steps on 7.2.10
+## Following the course steps on 7.2.12
 
 The reading material was written for 5.19.8. Same recipe, three differences:
 
-| Course step (5.19.8) | On 7.2.10 |
+| Course step (5.19.8) | On 7.2.12 |
 |---|---|
 | 3.1 add `add_syscall/` to `core-y` in the top-level `Makefile` | That line no longer exists. The list of top-level directories moved to the root file **`Kbuild`**: add `obj-y += net_quota/` after `obj-y += crypto/`. |
 | 3.2 add `451 common add_syscall sys_add_syscall` | Next free number is **472**: `472 common net_quota sys_net_quota` (tab-separated). |
@@ -76,7 +91,7 @@ traffic, so four more existing files are edited (patches 0001 to 0004).
 ```bash
 sudo su
 apt install build-essential flex bison libssl-dev libelf-dev bc
-cd /usr/src/linux-7.2.10        # the tarball from kernel.org, already extracted
+cd /usr/src/linux-7.2.12        # the tarball from kernel.org, already extracted
 ```
 
 It is worth doing one plain recompilation (Part C without the new files) first
@@ -90,14 +105,14 @@ here: they are changed by the patches in step 3, so there is one source of
 truth for each change. Copy the new files in:
 
 ```bash
-cp -r ~/net-quota-syscall/kernel-code/new-files/. /usr/src/linux-7.2.10/
+cp -r ~/net-quota-syscall/kernel-code/new-files/. /usr/src/linux-7.2.12/
 ls net_quota/                   # Makefile  net_quota.c  net_quota_syscall.h
 ```
 
 **Step 3: modify the existing files.** Either apply the patches:
 
 ```bash
-cd /usr/src/linux-7.2.10
+cd /usr/src/linux-7.2.12
 for p in ~/net-quota-syscall/kernel-code/patches/*.patch; do patch -p1 < "$p" || break; done
 ```
 
@@ -114,8 +129,8 @@ is a line to add). The files touched are `Kbuild`,
 # Start from the running kernel's .config (docs/setup-and-build.md, step A5,
 # explains the two certificate settings to clear), or, for a fresh start as in
 # the course, run: make defconfig
-# The fragment below gives the build its own name, 7.2.10-netquota, so it
-# cannot overwrite a plain 7.2.10 you built earlier
+# The fragment below gives the build its own name, 7.2.12-netquota, so it
+# cannot overwrite a plain 7.2.12 you built earlier
 scripts/kconfig/merge_config.sh -m .config \
     ~/net-quota-syscall/kernel-code/config/net_quota.config
 make olddefconfig
@@ -132,7 +147,7 @@ original kernel entry for fallback.
 ## Part D: check, then the user programs
 
 ```bash
-uname -r                                  # 7.2.10-netquota
+uname -r                                  # 7.2.12-netquota
 sudo grep sys_net_quota /proc/kallsyms    # __x64_sys_net_quota
 ```
 
@@ -144,7 +159,7 @@ side by side, like the course's `add2Num`.
 
 - The quota lives in `signal_struct`, so every thread of a process shares it.
 - Hooks are in `sock_sendmsg_nosec()` and `sock_recvmsg_nosec()`, the lowest
-  common send/receive paths in 7.2.10, plus `sock_splice_read()` for
+  common send/receive paths in 7.2.12, plus `sock_splice_read()` for
   receive-side splice. A process with no quota pays one load and one branch.
 - The descendant check walks *up* through `real_parent` from the target until
   it meets the caller. Same answer as walking the children subtree, in O(depth).
