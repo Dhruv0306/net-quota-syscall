@@ -13,7 +13,7 @@
  * Not covered, because they need set-up this test does not do: multishot
  * receive with provided buffers, and io_uring zero-copy receive (it needs a
  * network card with header/data split and a registered queue; it cannot run on
- * a veth pair). See docs/gap/ and user-code/docs/design.md, limitation 8.
+ * a veth pair). See user-code/docs/design.md, limitation 5.
  *
  * If the kernel has io_uring switched off, or an opcode is missing, the case
  * prints SKIP and does not fail.

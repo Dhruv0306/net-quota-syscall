@@ -163,5 +163,4 @@ side by side, like the course's `add2Num`.
   receive-side splice. A process with no quota pays one load and one branch.
 - The descendant check walks *up* through `real_parent` from the target until
   it meets the caller. Same answer as walking the children subtree, in O(depth).
-- All decisions and limitations are in `user-code/docs/design.md`; open gaps
-  are in `docs/gap/README.md`.
+- All decisions and limitations are in `user-code/docs/design.md`.

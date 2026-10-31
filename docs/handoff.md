@@ -12,7 +12,6 @@ other pages go deeper:
 | [syscall-reference.md](syscall-reference.md) | the system call as a reference: arguments, return values, rules, examples |
 | [setup-and-build.md](setup-and-build.md) | every command from kernel source to a booted kernel |
 | [../user-code/docs/design.md](../user-code/docs/design.md) | behaviour rules, decision log, implementation notes, known limitations |
-| [gap/README.md](gap/README.md) | register of open gaps, and the pending part of the third professor change |
 | [removing-net-quota.md](removing-net-quota.md) | taking the system call out of the kernel source and rebuilding |
 | [removing-custom-kernel.md](removing-custom-kernel.md) | removing the installed custom kernel and its GRUB entry |
 
@@ -77,7 +76,6 @@ net-quota-syscall/
 └── docs/                   this page, how-it-works.md, syscall-reference.md,
     │                       setup-and-build.md, removing-net-quota.md,
     │                       removing-custom-kernel.md
-    └── gap/                open gaps and the pending professor change
 ```
 
 The six patches:
@@ -274,7 +272,6 @@ owner's request.
    in advance they are still cut to what is left (`design.md` limitations 14
    to 16).
 8. A zero-length send with nothing left returns `EDQUOT` (decided: intended).
-9. The full list, with an action for each item, is `docs/gap/README.md`.
 
 ## 9. Gotchas
 
@@ -303,7 +300,7 @@ owner's request.
 
 ## 10. Suggested next steps
 
-There are no open gaps (`docs/gap/README.md`). Optional work:
+Nothing is open. Optional work:
 
 1. Tests for io_uring multishot receive and io_uring zero-copy receive
    (section 4), or leave them documented as untested.

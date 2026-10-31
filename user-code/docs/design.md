@@ -74,9 +74,23 @@ professor's changes were applied later, in this order.
 | `TCP_ZEROCOPY_RECEIVE` fails with `EOPNOTSUPP` for a process under a quota | project owner, 2026-10-28 (after the test found it uncounted) | patch 0006; passed on the test machine (2026-10-28) |
 | A zero-length send with nothing left returns `EDQUOT` | project owner, 2026-10-28 | in `main` (intended) |
 
-The full text of change 3, the answers given to the five questions it raised,
-and what is still open are in `docs/gap/professor-change-3-drop-oversized-request.md`.
-The list of open gaps is `docs/gap/README.md`.
+**Change 3, as the professor gave it:** "Drop network request if more than
+remaining quota, eg if 100 kb limit is remaining and 1 mb request is made drop
+it, don't do it partially."
+
+Answers that settled it (project owner and professor, 2026-10-23 and
+2026-10-28):
+
+- a dropped request costs no quota;
+- the error stays `EDQUOT`, so the caller is not told whether the request was
+  too big or the quota is used up;
+- multi-part calls (`sendfile`, `splice`, `sendmmsg`, io_uring) stay as they
+  are: the parts that fit succeed, the first part that does not fit fails;
+- the unused remainder is accepted: a process can be left with a few bytes it
+  cannot use until the timer ends;
+- a receive is judged by the data already waiting (not the buffer), a refused
+  receive leaves the data queued, and the rule is applied to TCP streams as far
+  as a stream allows. What it cannot do is in limitations 14 to 16 below.
 
 ## Implementation notes
 

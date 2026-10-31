@@ -5,7 +5,7 @@
  * That receive path (getsockopt() on a TCP socket whose pages are mapped into
  * the process) takes data straight from the receive queue and does not go
  * through sock_recvmsg(), where net_quota counts. On the first hardware run
- * this test showed the data was not counted at all (gap G11). The kernel now
+ * this test showed the data was not counted at all. The kernel now
  * returns EOPNOTSUPP from that option for a process that has a quota (patch
  * 0006); a program falls back to recv(), which is counted.
  *

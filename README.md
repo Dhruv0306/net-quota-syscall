@@ -13,8 +13,7 @@ patches also apply on 7.2.10, see `kernel-code/README.md`).
 net-quota-syscall/
 ├── kernel-code/     net_quota/ directory, headers and patches for the kernel tree
 ├── user-code/       wrapper library, CLI, tests and design notes
-└── docs/            handoff, setup and build, how it works, syscall reference, removal guides, open gaps
-    └── gap/         register of open gaps and the pending professor change
+└── docs/            handoff, setup and build, how it works, syscall reference, removal guides
 ```
 
 ## Quick start
@@ -36,9 +35,8 @@ sudo ./tests/run_tests.sh
    itself: arguments, errors, rules and examples.
 4. Read [user-code/docs/design.md](user-code/docs/design.md) for the decisions
    and known limitations.
-5. New to the project: start with [docs/handoff.md](docs/handoff.md). Open
-   issues are in [docs/gap/README.md](docs/gap/README.md). To take the system
-   call out again: [docs/removing-net-quota.md](docs/removing-net-quota.md) and
+5. New to the project: start with [docs/handoff.md](docs/handoff.md). To take
+   the system call out again: [docs/removing-net-quota.md](docs/removing-net-quota.md) and
    [docs/removing-custom-kernel.md](docs/removing-custom-kernel.md).
 
 ## Status
@@ -61,8 +59,8 @@ with `ALL TESTS PASSED` again.
 | Debug options | the tested kernel had every option of `config/net_quota_debug.config` on (lockdep, atomic-sleep, spinlock, timer-object checks); nothing was logged |
 | Change 3, receive side: judged by the data waiting, refused whole when it is more than what is left, data stays queued | `test_udp` (unconnected UDP: refused whole for any buffer, datagram stays queued, costs nothing) and the TCP case of `test_calls` passed (fourth and fifth run) |
 
-What is still open is in [docs/gap/README.md](docs/gap/README.md); the history
-and next steps are in [docs/handoff.md](docs/handoff.md).
+Nothing is open. The history and the optional next steps are in
+[docs/handoff.md](docs/handoff.md).
 
 ## Branches
 

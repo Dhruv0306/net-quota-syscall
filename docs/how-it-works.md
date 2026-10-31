@@ -680,6 +680,5 @@ the limit. Steps 7 and 8 show that the timer lifts the limit by itself.
 | [handoff.md](handoff.md) | what exists, what is proven, what to do next |
 | [setup-and-build.md](setup-and-build.md) | building and booting the kernel, and updating an existing build |
 | [../user-code/docs/design.md](../user-code/docs/design.md) | behaviour rules, decision log, known limitations |
-| [gap/README.md](gap/README.md) | open gaps and the record of the professor's third change |
 | [removing-net-quota.md](removing-net-quota.md) | taking the system call out of the kernel source |
 | [removing-custom-kernel.md](removing-custom-kernel.md) | removing the installed custom kernel from the machine |
