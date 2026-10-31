@@ -13,7 +13,7 @@ patches also apply on 7.2.10, see `kernel-code/README.md`).
 net-quota-syscall/
 ├── kernel-code/     net_quota/ directory, headers and patches for the kernel tree
 ├── user-code/       wrapper library, CLI, tests and design notes
-└── docs/            handoff, setup and build, how it works, removal guides, open gaps
+└── docs/            handoff, setup and build, how it works, syscall reference, removal guides, open gaps
     └── gap/         register of open gaps and the pending professor change
 ```
 
@@ -30,8 +30,10 @@ make
 sudo ./tests/run_tests.sh
 ```
 
-3. Read [docs/how-it-works.md](docs/how-it-works.md) to see how input and output
-   flow through user space and the kernel, with diagrams.
+3. Read [docs/how-it-works.md](docs/how-it-works.md) to see how the system works,
+   with diagrams that branch at every decision and show every return value, and
+   [docs/syscall-reference.md](docs/syscall-reference.md) for the system call
+   itself: arguments, errors, rules and examples.
 4. Read [user-code/docs/design.md](user-code/docs/design.md) for the decisions
    and known limitations.
 5. New to the project: start with [docs/handoff.md](docs/handoff.md). Open

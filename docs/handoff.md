@@ -8,7 +8,8 @@ other pages go deeper:
 
 | Page | What it covers |
 |---|---|
-| [how-it-works.md](how-it-works.md) | how data flows through user space and the kernel, with diagrams |
+| [how-it-works.md](how-it-works.md) | how the system works, with diagrams that branch at every decision and show every return value |
+| [syscall-reference.md](syscall-reference.md) | the system call as a reference: arguments, return values, rules, examples |
 | [setup-and-build.md](setup-and-build.md) | every command from kernel source to a booted kernel |
 | [../user-code/docs/design.md](../user-code/docs/design.md) | behaviour rules, decision log, implementation notes, known limitations |
 | [gap/README.md](gap/README.md) | register of open gaps, and the pending part of the third professor change |
@@ -73,8 +74,9 @@ net-quota-syscall/
 │   ├── include/            wrapper API, message texts, macro wrapper
 │   ├── tests/              the test programs and the runner
 │   └── docs/design.md
-└── docs/                   this page, how-it-works.md, setup-and-build.md,
-    │                       removing-net-quota.md, removing-custom-kernel.md
+└── docs/                   this page, how-it-works.md, syscall-reference.md,
+    │                       setup-and-build.md, removing-net-quota.md,
+    │                       removing-custom-kernel.md
     └── gap/                open gaps and the pending professor change
 ```
 

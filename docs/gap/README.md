@@ -24,7 +24,7 @@ veth pair). See `user-code/docs/design.md`, limitation 5.
 
 | ID | What was wrong | Fixed in |
 |---|---|---|
-| D1 | `how-it-works.md` flowchart sent an oversized TCP send down the "shorten" path | `how-it-works.md` section 3 |
+| D1 | `how-it-works.md` flowchart sent an oversized TCP send down the "shorten" path | `how-it-works.md` (rewritten on 2026-10-31; the flow is now section 5.3) |
 | D2 | "revoked for good" suggested a process could never be restricted again; in fact an ancestor can set a new quota after expiry | `how-it-works.md`, `design.md`, two code comments |
 | D3 | README status named the removed inheritance test and did not show what was compiled versus run | `README.md`, `kernel-code/README.md` |
 | D4 | `kernel-code/README.md` said `make defconfig` and had `make modules_install && make modules_install install` | `kernel-code/README.md` |

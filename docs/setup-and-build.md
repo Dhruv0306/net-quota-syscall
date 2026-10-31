@@ -381,4 +381,5 @@ system call out of the kernel *source* and build a kernel without it, follow
 | Tests fail with `connection refused` | the test server could not start. Run `ip -4 addr` and pass an address: `sudo SERVER_IP=<address> ./tests/run_tests.sh` |
 
 For how the system call works once it is running, see
-[how-it-works.md](how-it-works.md).
+[how-it-works.md](how-it-works.md); its arguments, errors and rules are in
+[syscall-reference.md](syscall-reference.md).
